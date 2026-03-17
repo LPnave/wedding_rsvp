@@ -71,7 +71,7 @@ export function CeremonyDetails() {
           >
             <div className="space-y-6">
               <div className="space-y-3">
-                <h3 className="font-playfair text-2xl md:text-3xl text-primary">Poruwa Ceremony at 10.30 am</h3>
+                <h3 className="font-playfair text-2xl md:text-3xl text-primary text-center">Poruwa Ceremony at 10.00 am</h3>
               </div>
             </div>
           </div>

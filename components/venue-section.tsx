@@ -81,7 +81,8 @@ export function VenueSection() {
                 height="100%"
                 style={{ border: 0 }}
                 loading="lazy"
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3960.8715280930507!2d80.66960584487906!3d7.281879731688009!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3ae2596c8e8e8e8d%3A0x8e8e8e8e8e8e8e8e!2sEarls%20Regency%20Hotel%20Kandy!5e0!3m2!1sen!2slk!4v1234567890"
+                // src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3960.8715280930507!2d80.66960584487906!3d7.281879731688009!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3ae2596c8e8e8e8d%3A0x8e8e8e8e8e8e8e8e!2sEarls%20Regency%20Hotel%20Kandy!5e0!3m2!1sen!2slk!4v1234567890"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3957.638753074287!2d80.6696058!3d7.281879699999999!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3ae366c3a19400f9%3A0x3eb8b1d79173d61a!2sEarl&#39;s%20Regency%20Hotel!5e0!3m2!1sen!2slk!4v1773747501406!5m2!1sen!2slk"
                 allowFullScreen
                 aria-hidden="false"
                 tabIndex={0}

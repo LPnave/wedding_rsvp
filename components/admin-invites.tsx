@@ -84,7 +84,8 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     if (filters.name && !i.family_name.toLowerCase().includes(filters.name.toLowerCase())) return false
     if (filters.code && !i.code.toLowerCase().includes(filters.code.toLowerCase())) return false
     if (filters.side !== "all" && i.side !== filters.side) return false
-    if (filters.responded === "yes" && Number(i.responded) === 0) return false
+    if (filters.responded === "attending" && !(Number(i.responded) > 0 && Number(i.confirmed_guests) > 0)) return false
+    if (filters.responded === "rejected" && !(Number(i.responded) > 0 && Number(i.confirmed_guests) === 0)) return false
     if (filters.responded === "pending" && Number(i.responded) > 0) return false
     return true
   })
@@ -231,7 +232,8 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                 className="px-3 py-1.5 text-sm rounded-lg border border-border bg-input focus:outline-none focus:ring-2 focus:ring-accent"
               >
                 <option value="all">All responses</option>
-                <option value="yes">Responded</option>
+                <option value="attending">Attending</option>
+                <option value="rejected">Rejected</option>
                 <option value="pending">Pending</option>
               </select>
               {hasActiveFilters && (
@@ -290,15 +292,13 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                     <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{invite.code}</td>
                     <td className="px-6 py-4 text-center">{invite.max_guests}</td>
                     <td className="px-6 py-4 text-center">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                          Number(invite.responded) > 0
-                            ? "bg-green-100 text-green-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}
-                      >
-                        {Number(invite.responded) > 0 ? "Yes" : "Pending"}
-                      </span>
+                      {(() => {
+                        const responded = Number(invite.responded) > 0
+                        const confirmed = Number(invite.confirmed_guests) > 0
+                        if (!responded) return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Pending</span>
+                        if (confirmed) return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Attending</span>
+                        return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Rejected</span>
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-center">
                       {Number(invite.confirmed_guests)} / {invite.max_guests}

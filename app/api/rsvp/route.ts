@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { rsvpLimiter } from "@/lib/ratelimit"
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for") ?? "127.0.0.1"
+  const { success } = await rsvpLimiter.limit(ip)
+
+  if (!success) {
+    return NextResponse.json(
+      { error: "Too many submissions. Please try again later." },
+      { status: 429 }
+    )
+  }
+
   try {
     const body = await req.json()
     const { name, attending, invite_code, guest_count } = body

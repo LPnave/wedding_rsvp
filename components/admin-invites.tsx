@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { Copy, Check, QrCode, Trash2 } from "lucide-react"
 
 interface Invite {
   id: number
@@ -22,6 +23,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
+  const [downloadingQR, setDownloadingQR] = useState<string | null>(null)
   const [filters, setFilters] = useState({ name: "", code: "", side: "all", responded: "all" })
   const router = useRouter()
 
@@ -69,6 +71,91 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     navigator.clipboard.writeText(url)
     setCopiedCode(code)
     setTimeout(() => setCopiedCode(null), 2000)
+  }
+
+  const handleDownloadQR = async (code: string, familyName: string) => {
+    setDownloadingQR(code)
+    try {
+      const QRCode = await import("qrcode")
+      const inviteUrl = `${window.location.origin}/?invite=${code}`
+
+      const W = 500
+      const H = 620
+      const canvas = document.createElement("canvas")
+      canvas.width = W
+      canvas.height = H
+      const ctx = canvas.getContext("2d")!
+
+      // Background
+      ctx.fillStyle = "#fef9f3"
+      ctx.fillRect(0, 0, W, H)
+
+      // Gold border
+      ctx.strokeStyle = "#d4af8e"
+      ctx.lineWidth = 6
+      ctx.strokeRect(16, 16, W - 32, H - 32)
+
+      // Inner thin border
+      ctx.strokeStyle = "#d4af8e"
+      ctx.lineWidth = 1.5
+      ctx.strokeRect(26, 26, W - 52, H - 52)
+
+      // Heading
+      ctx.fillStyle = "#2d5a4f"
+      ctx.font = "italic 28px Georgia, serif"
+      ctx.textAlign = "center"
+      ctx.fillText("Pabasara & Lahiru", W / 2, 80)
+
+      // Wedding date
+      ctx.font = "14px Georgia, serif"
+      ctx.fillStyle = "#5a6f52"
+      ctx.fillText("31st July 2026  ·  Kandy, Sri Lanka", W / 2, 108)
+
+      // Divider
+      ctx.strokeStyle = "#d4af8e"
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(80, 124)
+      ctx.lineTo(W - 80, 124)
+      ctx.stroke()
+
+      // QR code
+      const qrDataUrl = await QRCode.toDataURL(inviteUrl, {
+        width: 280,
+        margin: 1,
+        color: { dark: "#2d5a4f", light: "#fef9f3" },
+      })
+      const qrImg = new Image()
+      await new Promise<void>((resolve) => {
+        qrImg.onload = () => resolve()
+        qrImg.src = qrDataUrl
+      })
+      ctx.drawImage(qrImg, (W - 280) / 2, 144, 280, 280)
+
+      // Family name
+      ctx.fillStyle = "#2d5a4f"
+      ctx.font = "bold 22px Georgia, serif"
+      ctx.textAlign = "center"
+      ctx.fillText(familyName, W / 2, 466)
+
+      // Invite label
+      ctx.font = "13px Arial, sans-serif"
+      ctx.fillStyle = "#5a6f52"
+      ctx.fillText("You are invited to join us", W / 2, 494)
+
+      // Code
+      ctx.font = "11px monospace"
+      ctx.fillStyle = "#d4af8e"
+      ctx.fillText(code, W / 2, 556)
+
+      // Download
+      const link = document.createElement("a")
+      link.download = `${familyName.replace(/\s+/g, "-")}-invite-qr.png`
+      link.href = canvas.toDataURL("image/png")
+      link.click()
+    } finally {
+      setDownloadingQR(null)
+    }
   }
 
   const handleLogout = async () => {
@@ -307,15 +394,27 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleCopyLink(invite.code)}
-                          className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-cream transition-smooth"
+                          title="Copy invite link"
+                          className="p-2 rounded-lg border border-border hover:bg-cream transition-smooth text-primary"
                         >
-                          {copiedCode === invite.code ? "Copied!" : "Copy Link"}
+                          {copiedCode === invite.code
+                            ? <Check className="w-4 h-4 text-green-600" />
+                            : <Copy className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => handleDownloadQR(invite.code, invite.family_name)}
+                          disabled={downloadingQR === invite.code}
+                          title="Download QR code"
+                          className="p-2 rounded-lg border border-border hover:bg-cream transition-smooth text-primary disabled:opacity-50"
+                        >
+                          <QrCode className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(invite.id, invite.family_name)}
-                          className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-smooth"
+                          title="Delete invite"
+                          className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-smooth"
                         >
-                          Delete
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>

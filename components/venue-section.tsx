@@ -22,7 +22,8 @@ export function VenueSection() {
   }, [])
 
   const handleGetDirections = () => {
-    window.open("https://www.google.com/maps/search/?api=1&query=7.281879731688009,80.66960584487906", "_blank")
+    // window.open("https://www.google.com/maps/search/?api=1&query=7.281879731688009,80.66960584487906", "_blank")
+    window.open("https://maps.app.goo.gl/qQ14igiLrsXDQsyy5", "_blank")
   }
 
   return (

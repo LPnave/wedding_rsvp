@@ -8,6 +8,7 @@ interface Invite {
   code: string
   family_name: string
   max_guests: number
+  side: string
   responded: number
   confirmed_guests: number
   created_at: string
@@ -17,10 +18,11 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   const [invites, setInvites] = useState<Invite[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({ family_name: "", code: "", max_guests: "2" })
+  const [formData, setFormData] = useState({ family_name: "", max_guests: "1", side: "groom" })
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
+  const [filters, setFilters] = useState({ name: "", code: "", side: "all", responded: "all" })
   const router = useRouter()
 
   const fetchInvites = async () => {
@@ -35,17 +37,6 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     fetchInvites()
   }, [])
 
-  const slugify = (val: string) =>
-    val.toUpperCase().replace(/[^A-Z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
-
-  const handleFamilyNameChange = (val: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      family_name: val,
-      code: slugify(val),
-    }))
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
@@ -58,8 +49,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     })
 
     if (res.ok) {
-      setFormData({ family_name: "", code: "", max_guests: "2" })
-      setShowForm(false)
+      setFormData((p) => ({ ...p, family_name: "", max_guests: "1" }))
       fetchInvites()
     } else {
       const data = await res.json()
@@ -89,6 +79,17 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   const totalExpected = invites.reduce((sum, i) => sum + i.max_guests, 0)
   const totalConfirmed = invites.reduce((sum, i) => sum + Number(i.confirmed_guests), 0)
   const totalResponded = invites.filter((i) => Number(i.responded) > 0).length
+
+  const filtered = invites.filter((i) => {
+    if (filters.name && !i.family_name.toLowerCase().includes(filters.name.toLowerCase())) return false
+    if (filters.code && !i.code.toLowerCase().includes(filters.code.toLowerCase())) return false
+    if (filters.side !== "all" && i.side !== filters.side) return false
+    if (filters.responded === "yes" && Number(i.responded) === 0) return false
+    if (filters.responded === "pending" && Number(i.responded) > 0) return false
+    return true
+  })
+
+  const hasActiveFilters = filters.name || filters.code || filters.side !== "all" || filters.responded !== "all"
 
   return (
     <div className="min-h-screen bg-ivory">
@@ -144,27 +145,16 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
           {/* Add invite form */}
           {showForm && (
             <form onSubmit={handleSubmit} className="px-6 py-4 bg-cream border-b border-border space-y-4">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-primary mb-1">Family Name</label>
                   <input
                     type="text"
                     value={formData.family_name}
-                    onChange={(e) => handleFamilyNameChange(e.target.value)}
+                    onChange={(e) => setFormData((p) => ({ ...p, family_name: e.target.value }))}
                     required
                     placeholder="e.g. Silva Family"
                     className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-white focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-primary mb-1">Invite Code</label>
-                  <input
-                    type="text"
-                    value={formData.code}
-                    onChange={(e) => setFormData((p) => ({ ...p, code: slugify(e.target.value) }))}
-                    required
-                    placeholder="e.g. SILVA-FAMILY"
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-white focus:outline-none focus:ring-2 focus:ring-accent font-mono"
                   />
                 </div>
                 <div>
@@ -180,6 +170,24 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-medium text-primary mb-2">Side</label>
+                <div className="flex gap-6">
+                  {(["groom", "bride"] as const).map((s) => (
+                    <label key={s} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="side"
+                        value={s}
+                        checked={formData.side === s}
+                        onChange={() => setFormData((p) => ({ ...p, side: s }))}
+                        className="accent-primary"
+                      />
+                      <span className="text-sm text-primary capitalize">{s === "groom" ? "Groom's side" : "Bride's side"}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
               {formError && <p className="text-sm text-red-500">{formError}</p>}
               <button
                 type="submit"
@@ -189,6 +197,57 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                 {submitting ? "Creating..." : "Create Invite"}
               </button>
             </form>
+          )}
+
+          {/* Filters */}
+          {!loading && invites.length > 0 && (
+            <div className="px-6 py-3 border-b border-border bg-white flex flex-wrap gap-3 items-center">
+              <input
+                type="text"
+                placeholder="Search name..."
+                value={filters.name}
+                onChange={(e) => setFilters((p) => ({ ...p, name: e.target.value }))}
+                className="px-3 py-1.5 text-sm rounded-lg border border-border bg-input focus:outline-none focus:ring-2 focus:ring-accent w-40"
+              />
+              <input
+                type="text"
+                placeholder="Search code..."
+                value={filters.code}
+                onChange={(e) => setFilters((p) => ({ ...p, code: e.target.value }))}
+                className="px-3 py-1.5 text-sm rounded-lg border border-border bg-input focus:outline-none focus:ring-2 focus:ring-accent w-36 font-mono"
+              />
+              <select
+                value={filters.side}
+                onChange={(e) => setFilters((p) => ({ ...p, side: e.target.value }))}
+                className="px-3 py-1.5 text-sm rounded-lg border border-border bg-input focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="all">All sides</option>
+                <option value="groom">Groom&apos;s side</option>
+                <option value="bride">Bride&apos;s side</option>
+              </select>
+              <select
+                value={filters.responded}
+                onChange={(e) => setFilters((p) => ({ ...p, responded: e.target.value }))}
+                className="px-3 py-1.5 text-sm rounded-lg border border-border bg-input focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="all">All responses</option>
+                <option value="yes">Responded</option>
+                <option value="pending">Pending</option>
+              </select>
+              {hasActiveFilters && (
+                <button
+                  onClick={() => setFilters({ name: "", code: "", side: "all", responded: "all" })}
+                  className="text-xs text-muted-foreground hover:text-primary transition-smooth"
+                >
+                  Clear filters
+                </button>
+              )}
+              {hasActiveFilters && (
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {filtered.length} of {invites.length} shown
+                </span>
+              )}
+            </div>
           )}
 
           {/* Table */}
@@ -202,7 +261,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
             <table className="w-full text-sm">
               <thead className="bg-cream text-left">
                 <tr>
-                  {["Family", "Code", "Max Guests", "Responded", "Confirmed", "Actions"].map((h) => (
+                  {["Family", "Side", "Code", "Max Guests", "Responded", "Confirmed", "Actions"].map((h) => (
                     <th key={h} className="px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                       {h}
                     </th>
@@ -210,9 +269,24 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {invites.map((invite) => (
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-10 text-center text-muted-foreground text-sm">
+                      No invites match your filters.
+                    </td>
+                  </tr>
+                ) : filtered.map((invite) => (
                   <tr key={invite.id} className="hover:bg-cream/50 transition-smooth">
                     <td className="px-6 py-4 font-medium text-primary">{invite.family_name}</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                        invite.side === "bride"
+                          ? "bg-pink-100 text-pink-700"
+                          : "bg-blue-100 text-blue-700"
+                      }`}>
+                        {invite.side === "bride" ? "Bride's" : "Groom's"}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{invite.code}</td>
                     <td className="px-6 py-4 text-center">{invite.max_guests}</td>
                     <td className="px-6 py-4 text-center">

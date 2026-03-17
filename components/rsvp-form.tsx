@@ -66,7 +66,7 @@ export function RSVPForm() {
 
     try {
       const body: Record<string, unknown> = {
-        name: formData.name,
+        name: invite ? invite.family_name : formData.name,
         attending: formData.attendance,
       }
       if (inviteCode && invite) {
@@ -140,9 +140,6 @@ export function RSVPForm() {
                 <div className="text-center pb-2 border-b border-border">
                   <p className="text-sm text-muted-foreground">You are invited as part of</p>
                   <p className="font-playfair text-2xl text-primary mt-1">{invite.family_name}</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Up to {invite.max_guests} guest{invite.max_guests !== 1 ? "s" : ""}
-                  </p>
                 </div>
               )}
 
@@ -150,22 +147,24 @@ export function RSVPForm() {
                 <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">{inviteError}</p>
               )}
 
-              {/* Name Input */}
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-primary mb-2">
-                  Your Name
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                  placeholder="Enter your full name"
-                  className="input-focus w-full px-4 py-3 rounded-lg border border-border bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-smooth"
-                />
-              </div>
+              {/* Name Input — only shown when no invite code */}
+              {!invite && (
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-primary mb-2">
+                    Your Name
+                  </label>
+                  <input
+                    id="name"
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    required
+                    placeholder="Enter your full name"
+                    className="input-focus w-full px-4 py-3 rounded-lg border border-border bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-smooth"
+                  />
+                </div>
+              )}
 
               {/* Attendance Confirmation */}
               <div>

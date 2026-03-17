@@ -21,6 +21,14 @@ export async function GET(req: NextRequest) {
         r.created_at
       FROM rsvps r
       LEFT JOIN invites i ON i.code = r.invite_code COLLATE NOCASE
+      WHERE
+        r.invite_code IS NULL
+        OR r.id = (
+          SELECT id FROM rsvps r2
+          WHERE r2.invite_code = r.invite_code COLLATE NOCASE
+          ORDER BY r2.created_at DESC
+          LIMIT 1
+        )
       ORDER BY r.created_at ASC
     `)
 

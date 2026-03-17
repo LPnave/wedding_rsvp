@@ -10,16 +10,30 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const result = await db.execute("SELECT name, attending, created_at FROM rsvps ORDER BY created_at ASC")
+    const result = await db.execute(`
+      SELECT
+        r.name,
+        r.attending,
+        r.guest_count,
+        r.invite_code,
+        COALESCE(i.family_name, '') AS family_name,
+        r.created_at
+      FROM rsvps r
+      LEFT JOIN invites i ON i.code = r.invite_code COLLATE NOCASE
+      ORDER BY r.created_at ASC
+    `)
 
     const rows = result.rows.map((row) => {
       const name = String(row.name).replace(/"/g, '""')
+      const family = String(row.family_name).replace(/"/g, '""')
       const attending = row.attending === 1 ? "Yes" : "No"
+      const guestCount = row.attending === 1 ? String(row.guest_count ?? 1) : "0"
+      const inviteCode = row.invite_code ? String(row.invite_code) : ""
       const date = String(row.created_at).split("T")[0] ?? String(row.created_at)
-      return `"${name}",${attending},${date}`
+      return `"${name}","${family}",${inviteCode},${attending},${guestCount},${date}`
     })
 
-    const csv = ["Name,Attending,Date", ...rows].join("\n")
+    const csv = ["Name,Family,InviteCode,Attending,GuestCount,Date", ...rows].join("\n")
 
     return new NextResponse(csv, {
       status: 200,

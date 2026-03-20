@@ -13,6 +13,7 @@ interface FormData {
 interface InviteInfo {
   family_name: string
   max_guests: number
+  already_submitted: boolean
 }
 
 export function RSVPForm() {
@@ -32,19 +33,21 @@ export function RSVPForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+
   useEffect(() => {
     if (!inviteCode) return
     const fetchInvite = async () => {
       try {
         const res = await fetch(`/api/invite/${encodeURIComponent(inviteCode)}`)
         if (!res.ok) {
-          setInviteError("This invite link is not valid. You can still RSVP below.")
+          setInviteError("This invite link is not valid.")
           setInviteLoading(false)
           return
         }
         const data: InviteInfo = await res.json()
         setInvite(data)
         setFormData((prev) => ({ ...prev, guestCount: data.max_guests }))
+        if (data.already_submitted) setSubmitted(true)
       } catch {
         setInviteError("Could not load invite details. You can still RSVP below.")
       } finally {
@@ -86,10 +89,6 @@ export function RSVPForm() {
       }
 
       setSubmitted(true)
-      setTimeout(() => {
-        setFormData({ name: "", attendance: "", guestCount: invite?.max_guests ?? 1 })
-        setSubmitted(false)
-      }, 4000)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit RSVP. Please try again.")
     } finally {
@@ -131,6 +130,14 @@ export function RSVPForm() {
 
         {inviteLoading ? (
           <div className="text-center text-muted-foreground text-sm py-8">Loading your invitation...</div>
+        ) : inviteCode && inviteError ? (
+          <div className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-border text-center space-y-4">
+            <svg className="w-12 h-12 text-amber-400 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <h3 className="font-playfair text-2xl text-primary">Invalid Invite Link</h3>
+            <p className="text-primary/70">{inviteError}</p>
+          </div>
         ) : !submitted ? (
           <form onSubmit={handleSubmit} className="slide-up">
             <div className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-border space-y-6 hover-lift transition-smooth-slow">
@@ -141,10 +148,6 @@ export function RSVPForm() {
                   <p className="text-sm text-muted-foreground">You are invited as part of</p>
                   <p className="font-playfair text-2xl text-primary mt-1">{invite.family_name}</p>
                 </div>
-              )}
-
-              {inviteError && (
-                <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">{inviteError}</p>
               )}
 
               {/* Name Input — only shown when no invite code */}

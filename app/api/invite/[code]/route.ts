@@ -25,9 +25,16 @@ export async function GET(
     }
 
     const row = result.rows[0]
+
+    const rsvpResult = await db.execute({
+      sql: "SELECT id FROM rsvps WHERE invite_code = ? COLLATE NOCASE ORDER BY created_at DESC LIMIT 1",
+      args: [code],
+    })
+
     return NextResponse.json({
       family_name: row.family_name,
       max_guests: row.max_guests,
+      already_submitted: rsvpResult.rows.length > 0,
     })
   } catch (error) {
     console.error("Invite lookup error:", error)

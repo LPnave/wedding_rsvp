@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Copy, Check, QrCode, Trash2 } from "lucide-react"
+import { Copy, Check, QrCode, Trash2, MessageCircle } from "lucide-react"
 
 interface Invite {
   id: number
@@ -409,6 +409,15 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                         >
                           <QrCode className="w-4 h-4" />
                         </button>
+                        <a
+                          href={`https://wa.me/?text=${encodeURIComponent(`You're invited to Pabasara & Lahiru's wedding! 🎉\n\nPlease RSVP here: ${window.location.origin}/?invite=${invite.code}`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Share via WhatsApp"
+                          className="p-2 rounded-lg border border-green-200 text-green-600 hover:bg-green-50 transition-smooth inline-flex items-center"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                        </a>
                         <button
                           onClick={() => handleDelete(invite.id, invite.family_name)}
                           title="Delete invite"

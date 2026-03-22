@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 
-export default function EscortLoginPage() {
+export default function UsherLoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -14,14 +14,14 @@ export default function EscortLoginPage() {
     setLoading(true)
     setError(null)
 
-    const res = await fetch("/api/escort/auth", {
+    const res = await fetch("/api/usher/auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password }),
     })
 
     if (res.ok) {
-      router.push("/escort")
+      router.push("/usher")
     } else {
       const data = await res.json()
       setError(data.error ?? "Invalid password")
@@ -33,8 +33,8 @@ export default function EscortLoginPage() {
     <div className="min-h-screen bg-ivory flex items-center justify-center px-4">
       <div className="w-full max-w-sm bg-white rounded-2xl border border-border shadow-sm p-8 space-y-6">
         <div className="text-center space-y-1">
-          <h1 className="font-playfair text-2xl text-primary">Escort Portal</h1>
-          <p className="text-sm text-muted-foreground">Pabasara & Lahiru — 31 July 2026</p>
+          <h1 className="font-playfair text-2xl text-primary">Usher Portal</h1>
+          <p className="text-sm text-muted-foreground">Pabasara &amp; Lahiru — 31 July 2026</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

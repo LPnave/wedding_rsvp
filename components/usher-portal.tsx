@@ -19,7 +19,7 @@ interface GuestResult {
   table_mates?: TableMate[]
 }
 
-export function EscortPortal() {
+export function UsherPortal() {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<GuestResult[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -40,7 +40,7 @@ export function EscortPortal() {
     setError(null)
     setResults(null)
 
-    const res = await fetch(`/api/escort/lookup?q=${encodeURIComponent(q)}`)
+    const res = await fetch(`/api/usher/lookup?q=${encodeURIComponent(q)}`)
     if (res.ok) {
       const data = await res.json()
       setResults(data)
@@ -74,14 +74,12 @@ export function EscortPortal() {
     }
   }
 
-  // Attach stream to video element once scanning starts
   useEffect(() => {
     if (!scanning || !videoRef.current || !streamRef.current) return
     videoRef.current.srcObject = streamRef.current
     videoRef.current.play()
   }, [scanning])
 
-  // QR decode loop
   const tick = useCallback(async () => {
     const video = videoRef.current
     const canvas = canvasRef.current
@@ -101,7 +99,6 @@ export function EscortPortal() {
 
     if (code) {
       stopCamera()
-      // Extract invite code from URL or use raw data directly
       let inviteCode = code.data
       try {
         const url = new URL(code.data)
@@ -127,7 +124,6 @@ export function EscortPortal() {
     }
   }, [scanning, tick])
 
-  // Cleanup on unmount
   useEffect(() => () => stopCamera(), [stopCamera])
 
   const handleSearch = async (e?: React.FormEvent) => {
@@ -138,8 +134,8 @@ export function EscortPortal() {
   }
 
   const handleLogout = async () => {
-    await fetch("/api/escort/auth", { method: "DELETE" })
-    router.push("/escort/login")
+    await fetch("/api/usher/auth", { method: "DELETE" })
+    router.push("/usher/login")
   }
 
   const handleClear = () => {
@@ -153,7 +149,7 @@ export function EscortPortal() {
     <div className="min-h-screen bg-ivory">
       <header className="bg-white border-b border-border px-6 py-4 flex items-center justify-between">
         <div>
-          <h1 className="font-playfair text-2xl text-primary">Escort Portal</h1>
+          <h1 className="font-playfair text-2xl text-primary">Usher Portal</h1>
           <p className="text-sm text-muted-foreground">Pabasara &amp; Lahiru — 31 July 2026</p>
         </div>
         <button
@@ -165,17 +161,10 @@ export function EscortPortal() {
       </header>
 
       <main className="max-w-lg mx-auto px-6 py-10 space-y-6">
-        {/* Camera scanner */}
         {scanning ? (
           <div className="space-y-3">
             <div className="relative rounded-2xl overflow-hidden bg-black aspect-square">
-              <video
-                ref={videoRef}
-                className="w-full h-full object-cover"
-                playsInline
-                muted
-              />
-              {/* Viewfinder overlay */}
+              <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-56 h-56 relative">
                   <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-lg" />
@@ -248,10 +237,7 @@ export function EscortPortal() {
         {results && results.length > 0 && (
           <div className="space-y-4">
             {results.map((guest) => (
-              <div
-                key={guest.code}
-                className="bg-white rounded-2xl border border-border p-6 space-y-4"
-              >
+              <div key={guest.code} className="bg-white rounded-2xl border border-border p-6 space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h2 className="font-playfair text-xl text-primary">{guest.family_name}</h2>
@@ -301,10 +287,7 @@ export function EscortPortal() {
 
         {results && results.length > 0 && (
           <div className="text-center">
-            <button
-              onClick={handleClear}
-              className="text-sm text-muted-foreground hover:text-primary transition-smooth"
-            >
+            <button onClick={handleClear} className="text-sm text-muted-foreground hover:text-primary transition-smooth">
               Search again
             </button>
           </div>

@@ -38,7 +38,6 @@ export async function GET(req: NextRequest) {
       table_mates?: Array<{ family_name: string; confirmed_guests: number; max_guests: number }>
     }>
 
-    // For each result that has a table number, fetch table-mates
     for (const guest of guests) {
       if (!guest.table_number) continue
 
@@ -63,7 +62,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(guests)
   } catch (error) {
-    console.error("Escort lookup error:", error)
+    console.error("Usher lookup error:", error)
     return NextResponse.json({ error: "Lookup failed" }, { status: 500 })
   }
 }

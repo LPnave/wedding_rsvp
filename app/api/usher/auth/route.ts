@@ -3,12 +3,12 @@ import { NextRequest, NextResponse } from "next/server"
 export async function POST(req: NextRequest) {
   const { password } = await req.json()
 
-  if (!process.env.ESCORT_SECRET || password !== process.env.ESCORT_SECRET) {
+  if (!process.env.USHER_SECRET || password !== process.env.USHER_SECRET) {
     return NextResponse.json({ error: "Invalid password" }, { status: 401 })
   }
 
   const res = NextResponse.json({ success: true })
-  res.cookies.set("escort_auth", process.env.ESCORT_SECRET, {
+  res.cookies.set("usher_auth", process.env.USHER_SECRET, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
@@ -19,6 +19,6 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE() {
   const res = NextResponse.json({ success: true })
-  res.cookies.delete("escort_auth")
+  res.cookies.delete("usher_auth")
   return res
 }

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Copy, Check, QrCode, Trash2, MessageCircle } from "lucide-react"
+import { Copy, Check, QrCode, Trash2, MessageCircle, RefreshCw, MoreHorizontal } from "lucide-react"
+import { AdminStatsModal } from "@/components/admin-stats"
 
 interface Invite {
   id: number
@@ -27,6 +28,9 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   const [downloadingQR, setDownloadingQR] = useState<string | null>(null)
   const [editingTable, setEditingTable] = useState<number | null>(null)
   const [tableInput, setTableInput] = useState("")
+  const [regeneratingCode, setRegeneratingCode] = useState<number | null>(null)
+  const [openMenu, setOpenMenu] = useState<number | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
   const [filters, setFilters] = useState({ name: "", code: "", side: "all", responded: "all" })
   const router = useRouter()
 
@@ -37,6 +41,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   }
 
   useEffect(() => { fetchInvites() }, [])
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -57,9 +62,10 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     setSubmitting(false)
   }
 
-  const handleDelete = async (id: number, familyName: string) => {
-    if (!confirm(`Delete invite for "${familyName}"? This cannot be undone.`)) return
+  const handleDelete = async (id: number) => {
     await fetch(`/api/admin/invites/${id}`, { method: "DELETE" })
+    setOpenMenu(null)
+    setConfirmDelete(null)
     fetchInvites()
   }
 
@@ -70,6 +76,18 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
       body: JSON.stringify({ table_number: tableInput.trim() || null }),
     })
     setEditingTable(null)
+    fetchInvites()
+  }
+
+  const handleRegenerateCode = async (id: number) => {
+    setOpenMenu(null)
+    setRegeneratingCode(id)
+    await fetch(`/api/admin/invites/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "regenerate" }),
+    })
+    setRegeneratingCode(null)
     fetchInvites()
   }
 
@@ -185,14 +203,72 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
       >
         <MessageCircle className="w-4 h-4" />
       </a>
-      <button onClick={() => handleDelete(invite.id, invite.family_name)} title="Delete invite" className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-smooth">
-        <Trash2 className="w-4 h-4" />
-      </button>
+
+      {/* Three-dot menu */}
+      <div className="relative">
+        <button
+          onClick={() => { setOpenMenu(openMenu === invite.id ? null : invite.id); setConfirmDelete(null) }}
+          title="More options"
+          className="p-2 rounded-lg border border-border hover:bg-cream transition-smooth text-muted-foreground"
+        >
+          <MoreHorizontal className="w-4 h-4" />
+        </button>
+
+        {openMenu === invite.id && (
+          <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl border border-border shadow-lg z-30 overflow-hidden">
+            {confirmDelete === invite.id ? (
+              <div className="p-3 space-y-2">
+                <p className="text-xs text-primary font-medium">Delete this invite?</p>
+                <p className="text-xs text-muted-foreground">This cannot be undone.</p>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => setConfirmDelete(null)}
+                    className="flex-1 text-xs py-1.5 rounded-lg border border-border hover:bg-cream transition-smooth"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDelete(invite.id)}
+                    className="flex-1 text-xs py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-smooth"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => handleRegenerateCode(invite.id)}
+                  disabled={regeneratingCode === invite.id}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-amber-600 hover:bg-amber-50 transition-smooth disabled:opacity-50"
+                >
+                  <RefreshCw className="w-4 h-4 shrink-0" />
+                  Regenerate Code
+                </button>
+                <div className="border-t border-border" />
+                <button
+                  onClick={() => setConfirmDelete(invite.id)}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-smooth"
+                >
+                  <Trash2 className="w-4 h-4 shrink-0" />
+                  Delete
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 
   return (
     <div className="min-h-screen bg-ivory">
+      {openMenu !== null && (
+        <div
+          className="fixed inset-0 z-20"
+          onClick={() => { setOpenMenu(null); setConfirmDelete(null) }}
+        />
+      )}
       {/* Header */}
       <header className="bg-white border-b border-border px-4 md:px-6 py-4 flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -200,6 +276,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
           <p className="text-xs md:text-sm text-muted-foreground">Pabasara &amp; Lahiru — 31 July 2026</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <AdminStatsModal />
           <a
             href={`/api/rsvp/export?key=${exportSecret}`}
             className="text-xs md:text-sm px-3 md:px-4 py-2 rounded-lg border border-border text-primary hover:bg-cream transition-smooth whitespace-nowrap"

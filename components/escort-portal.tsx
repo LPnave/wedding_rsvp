@@ -4,12 +4,19 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Search, ScanLine, X } from "lucide-react"
 
+interface TableMate {
+  family_name: string
+  max_guests: number
+  confirmed_guests: number
+}
+
 interface GuestResult {
   code: string
   family_name: string
   max_guests: number
   table_number: string | null
   confirmed_guests: number
+  table_mates?: TableMate[]
 }
 
 export function EscortPortal() {
@@ -259,9 +266,28 @@ export function EscortPortal() {
                 </div>
 
                 {guest.table_number ? (
-                  <div className="bg-cream rounded-xl p-4 text-center">
-                    <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Table Number</p>
-                    <p className="font-playfair text-6xl text-primary">{guest.table_number}</p>
+                  <div className="space-y-3">
+                    <div className="bg-cream rounded-xl p-4 text-center">
+                      <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Table Number</p>
+                      <p className="font-playfair text-6xl text-primary">{guest.table_number}</p>
+                    </div>
+
+                    {guest.table_mates && guest.table_mates.length > 0 && (
+                      <div className="rounded-xl border border-border p-3 space-y-2">
+                        <p className="text-xs text-muted-foreground uppercase tracking-widest">Others at this table</p>
+                        <ul className="space-y-1.5">
+                          {guest.table_mates.map((mate) => {
+                            const count = Number(mate.confirmed_guests) > 0 ? mate.confirmed_guests : mate.max_guests
+                            return (
+                              <li key={mate.family_name} className="flex items-center justify-between gap-2">
+                                <span className="text-sm text-primary">{mate.family_name}</span>
+                                <span className="text-xs text-muted-foreground shrink-0">{count} {count === 1 ? "guest" : "guests"}</span>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-amber-50 rounded-xl p-4 text-center">

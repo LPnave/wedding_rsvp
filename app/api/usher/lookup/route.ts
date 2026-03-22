@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       args: [query, `%${query}%`],
     })
 
-    const guests = result.rows as Array<{
+    const guests = result.rows as unknown as Array<{
       code: string
       family_name: string
       max_guests: number
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         args: [guest.table_number, guest.code],
       })
 
-      guest.table_mates = matesResult.rows as Array<{ family_name: string; confirmed_guests: number; max_guests: number }>
+      guest.table_mates = matesResult.rows as unknown as Array<{ family_name: string; confirmed_guests: number; max_guests: number }>
     }
 
     return NextResponse.json(guests)

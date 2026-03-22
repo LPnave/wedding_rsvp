@@ -10,6 +10,7 @@ export async function GET() {
         i.family_name,
         i.max_guests,
         i.side,
+        i.table_number,
         i.created_at,
         COUNT(r.id) AS responded,
         COALESCE(SUM(CASE WHEN r.attending = 1 THEN r.guest_count ELSE 0 END), 0) AS confirmed_guests

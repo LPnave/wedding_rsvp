@@ -18,3 +18,6 @@ CREATE TABLE invites (
 
 ALTER TABLE rsvps ADD COLUMN invite_code TEXT;
 ALTER TABLE rsvps ADD COLUMN guest_count INTEGER DEFAULT 1;
+
+ALTER TABLE invites ADD COLUMN side TEXT NOT NULL DEFAULT 'groom';
+ALTER TABLE invites ADD COLUMN table_number TEXT;

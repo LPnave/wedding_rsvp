@@ -13,6 +13,7 @@ interface FormData {
 interface InviteInfo {
   family_name: string
   max_guests: number
+  table_number: string | null
   already_submitted: boolean
 }
 
@@ -249,6 +250,13 @@ export function RSVPForm() {
             <p className="text-primary/70 elegant-text">
               We have received your RSVP and truly appreciate your response.
             </p>
+            {invite?.table_number && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <p className="text-sm text-muted-foreground uppercase tracking-widest mb-1">Your Table</p>
+                <p className="font-playfair text-5xl text-primary">{invite.table_number}</p>
+                <p className="text-xs text-muted-foreground mt-1">Please show this at the entrance</p>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -16,7 +16,7 @@ export async function GET(
   const { code } = await params
   try {
     const result = await db.execute({
-      sql: "SELECT family_name, max_guests FROM invites WHERE code = ? COLLATE NOCASE",
+      sql: "SELECT family_name, max_guests, table_number FROM invites WHERE code = ? COLLATE NOCASE",
       args: [code],
     })
 
@@ -34,6 +34,7 @@ export async function GET(
     return NextResponse.json({
       family_name: row.family_name,
       max_guests: row.max_guests,
+      table_number: row.table_number ?? null,
       already_submitted: rsvpResult.rows.length > 0,
     })
   } catch (error) {

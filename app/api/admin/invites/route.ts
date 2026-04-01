@@ -55,11 +55,13 @@ export async function POST(req: NextRequest) {
     for (let attempt = 0; attempt < 5; attempt++) {
       code = generateCode()
       try {
-        await db.execute({
+        const result = await db.execute({
           sql: "INSERT INTO invites (code, family_name, max_guests, side) VALUES (?, ?, ?, ?)",
           args: [code, family_name.trim(), guests, side],
         })
-        return NextResponse.json({ success: true, code }, { status: 201 })
+        const id = Number(result.lastInsertRowid)
+        const created_at = new Date().toISOString().replace("T", " ").slice(0, 19)
+        return NextResponse.json({ success: true, code, id, created_at }, { status: 201 })
       } catch (err: unknown) {
         if (err instanceof Error && err.message?.includes("UNIQUE")) continue
         throw err

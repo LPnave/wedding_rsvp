@@ -53,8 +53,20 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
       body: JSON.stringify(formData),
     })
     if (res.ok) {
+      const data = await res.json()
+      const newInvite: Invite = {
+        id: data.id,
+        code: data.code,
+        family_name: formData.family_name.trim(),
+        max_guests: parseInt(formData.max_guests, 10),
+        side: formData.side,
+        table_number: null,
+        responded: 0,
+        confirmed_guests: 0,
+        created_at: data.created_at,
+      }
+      setInvites((prev) => [...prev, newInvite])
       setFormData((p) => ({ ...p, family_name: "", max_guests: "1" }))
-      fetchInvites()
     } else {
       const data = await res.json()
       setFormError(data.error ?? "Failed to create invite")
@@ -63,32 +75,40 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   }
 
   const handleDelete = async (id: number) => {
-    await fetch(`/api/admin/invites/${id}`, { method: "DELETE" })
+    const res = await fetch(`/api/admin/invites/${id}`, { method: "DELETE" })
     setOpenMenu(null)
     setConfirmDelete(null)
-    fetchInvites()
+    if (res.ok) {
+      setInvites((prev) => prev.filter((i) => i.id !== id))
+    }
   }
 
   const handleUpdateTableNumber = async (id: number) => {
-    await fetch(`/api/admin/invites/${id}`, {
+    const newValue = tableInput.trim() || null
+    const res = await fetch(`/api/admin/invites/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table_number: tableInput.trim() || null }),
+      body: JSON.stringify({ table_number: newValue }),
     })
     setEditingTable(null)
-    fetchInvites()
+    if (res.ok) {
+      setInvites((prev) => prev.map((i) => i.id === id ? { ...i, table_number: newValue } : i))
+    }
   }
 
   const handleRegenerateCode = async (id: number) => {
     setOpenMenu(null)
     setRegeneratingCode(id)
-    await fetch(`/api/admin/invites/${id}`, {
+    const res = await fetch(`/api/admin/invites/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "regenerate" }),
     })
     setRegeneratingCode(null)
-    fetchInvites()
+    if (res.ok) {
+      const data = await res.json()
+      setInvites((prev) => prev.map((i) => i.id === id ? { ...i, code: data.code } : i))
+    }
   }
 
   const handleCopyLink = (code: string) => {

@@ -16,7 +16,18 @@ export async function GET(
   const { code } = await params
   try {
     const result = await db.execute({
-      sql: "SELECT family_name, max_guests, table_number FROM invites WHERE code = ? COLLATE NOCASE",
+      sql: `
+        SELECT
+          i.family_name,
+          i.max_guests,
+          i.table_number,
+          EXISTS(
+            SELECT 1 FROM rsvps r
+            WHERE r.invite_code = i.code COLLATE NOCASE
+          ) AS already_submitted
+        FROM invites i
+        WHERE i.code = ? COLLATE NOCASE
+      `,
       args: [code],
     })
 
@@ -26,16 +37,11 @@ export async function GET(
 
     const row = result.rows[0]
 
-    const rsvpResult = await db.execute({
-      sql: "SELECT id FROM rsvps WHERE invite_code = ? COLLATE NOCASE ORDER BY created_at DESC LIMIT 1",
-      args: [code],
-    })
-
     return NextResponse.json({
       family_name: row.family_name,
       max_guests: row.max_guests,
       table_number: row.table_number ?? null,
-      already_submitted: rsvpResult.rows.length > 0,
+      already_submitted: row.already_submitted === 1,
     })
   } catch (error) {
     console.error("Invite lookup error:", error)

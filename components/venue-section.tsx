@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { MapPin, CalendarDays } from "lucide-react"
 
 export function VenueSection() {
   const [isInView, setIsInView] = useState(false)
@@ -38,6 +39,16 @@ export function VenueSection() {
       "SUMMARY:Wedding of Pabasara & Lahiru",
       "DESCRIPTION:You are cordially invited to celebrate the wedding of Pabasara & Lahiru.",
       "LOCATION:Regent Ballroom\\, Earls Regency Hotel\\, Kandy\\, Sri Lanka",
+      "BEGIN:VALARM",
+      "TRIGGER:-P14D",
+      "ACTION:DISPLAY",
+      "DESCRIPTION:2 weeks until the wedding of Pabasara & Lahiru!",
+      "END:VALARM",
+      "BEGIN:VALARM",
+      "TRIGGER:-P1D",
+      "ACTION:DISPLAY",
+      "DESCRIPTION:Tomorrow is the wedding of Pabasara & Lahiru!",
+      "END:VALARM",
       "END:VEVENT",
       "END:VCALENDAR",
     ].join("\r\n")
@@ -133,9 +144,7 @@ export function VenueSection() {
                     animation: isInView ? "slideUpSmooth 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards 0.3s" : "none",
                   }}
                 >
-                  <svg className="w-6 h-6 text-accent flex-shrink-0 mt-1" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12c0 4.84 3.94 8.75 8.75 8.75.32 0 .64-.02.95-.05 3.71.64 6.3 3.23 6.94 6.94.03.31.05.63.05.95C21.06 20.06 21.06 2 12 2zm0 18c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z" />
-                  </svg>
+                  <MapPin className="w-6 h-6 text-accent flex-shrink-0 mt-1" />
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Location</p>
                     <p className="text-primary font-medium">Regent Ballroom, Earls Regency Hotel, Kandy</p>
@@ -148,9 +157,7 @@ export function VenueSection() {
                     animation: isInView ? "slideUpSmooth 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards 0.4s" : "none",
                   }}
                 >
-                  <svg className="w-6 h-6 text-accent flex-shrink-0 mt-1" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54h3.97l4.24-5.13L12 9l-3.04 3.29z" />
-                  </svg>
+                  <CalendarDays className="w-6 h-6 text-accent flex-shrink-0 mt-1" />
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Date & Time</p>
                     <p className="text-primary font-medium">Friday, 31st July 2026</p>

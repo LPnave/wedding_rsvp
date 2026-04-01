@@ -102,7 +102,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     try {
       const QRCode = await import("qrcode")
       const inviteUrl = `${window.location.origin}/?invite=${code}`
-      const W = 500, H = 620
+      const W = 500, H = 660
       const canvas = document.createElement("canvas")
       canvas.width = W; canvas.height = H
       const ctx = canvas.getContext("2d")!
@@ -115,15 +115,17 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
       ctx.fillText("31st July 2026  ·  Kandy, Sri Lanka", W / 2, 108)
       ctx.strokeStyle = "#d4af8e"; ctx.lineWidth = 1
       ctx.beginPath(); ctx.moveTo(80, 124); ctx.lineTo(W - 80, 124); ctx.stroke()
+      ctx.fillStyle = "#2d5a4f"; ctx.font = "italic 22px Georgia, serif"; ctx.textAlign = "center"
+      ctx.fillText("RSVP", W / 2, 156)
       const qrDataUrl = await QRCode.toDataURL(inviteUrl, { width: 280, margin: 1, color: { dark: "#2d5a4f", light: "#fef9f3" } })
       const qrImg = new Image()
       await new Promise<void>((resolve) => { qrImg.onload = () => resolve(); qrImg.src = qrDataUrl })
-      ctx.drawImage(qrImg, (W - 280) / 2, 144, 280, 280)
+      ctx.drawImage(qrImg, (W - 280) / 2, 174, 280, 280)
       ctx.fillStyle = "#2d5a4f"; ctx.font = "bold 22px Georgia, serif"; ctx.textAlign = "center"
-      ctx.fillText(familyName, W / 2, 466)
+      ctx.fillText(familyName, W / 2, 498)
       ctx.font = "13px Arial, sans-serif"; ctx.fillStyle = "#5a6f52"
-      ctx.fillText("You are invited to join us", W / 2, 494)
-      ctx.font = "11px monospace"; ctx.fillStyle = "#d4af8e"; ctx.fillText(code, W / 2, 556)
+      ctx.fillText("You are invited to join us", W / 2, 526)
+      ctx.font = "11px monospace"; ctx.fillStyle = "#d4af8e"; ctx.fillText(code, W / 2, 590)
       const link = document.createElement("a")
       link.download = `${familyName.replace(/\s+/g, "-")}-invite-qr.png`
       link.href = canvas.toDataURL("image/png"); link.click()
@@ -215,7 +217,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
         </button>
 
         {openMenu === invite.id && (
-          <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl border border-border shadow-lg z-30 overflow-hidden">
+          <div className="absolute right-[-60px] top-full mt-1 w-48 bg-white rounded-xl border border-border shadow-lg z-30 overflow-hidden">
             {confirmDelete === invite.id ? (
               <div className="p-3 space-y-2">
                 <p className="text-xs text-primary font-medium">Delete this invite?</p>

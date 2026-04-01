@@ -22,8 +22,35 @@ export function VenueSection() {
   }, [])
 
   const handleGetDirections = () => {
-    // window.open("https://www.google.com/maps/search/?api=1&query=7.281879731688009,80.66960584487906", "_blank")
     window.open("https://maps.app.goo.gl/qQ14igiLrsXDQsyy5", "_blank")
+  }
+
+  const handleAddToCalendar = () => {
+    const icsContent = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Wedding Invitation//EN",
+      "BEGIN:VEVENT",
+      "UID:pabasara-lahiru-wedding-2026@wedding",
+      "DTSTAMP:20260317T000000Z",
+      "DTSTART:20260731T043000Z",
+      "DTEND:20260731T103000Z",
+      "SUMMARY:Wedding of Pabasara & Lahiru",
+      "DESCRIPTION:You are cordially invited to celebrate the wedding of Pabasara & Lahiru.",
+      "LOCATION:Regent Ballroom\\, Earls Regency Hotel\\, Kandy\\, Sri Lanka",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n")
+
+    const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "pabasara-lahiru-wedding.ics"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -131,32 +158,23 @@ export function VenueSection() {
                 </div>
               </div>
 
-              <button
-                onClick={handleGetDirections}
-                className={`w-full md:w-auto bg-primary text-primary-foreground px-8 py-3 rounded-lg font-medium hover:bg-primary/90 transition-smooth hover-lift slide-up-smooth item-delay-3 ${isInView ? "" : "opacity-0"}`}
-              >
-                Get Directions
-              </button>
+              <div className={`flex flex-col sm:flex-row gap-3 slide-up-smooth item-delay-3 ${isInView ? "" : "opacity-0"}`}>
+                <button
+                  onClick={handleGetDirections}
+                  className="w-full sm:w-auto bg-primary text-primary-foreground px-8 py-3 rounded-lg font-medium hover:bg-primary/90 transition-smooth hover-lift"
+                >
+                  Get Directions
+                </button>
+                <button
+                  onClick={handleAddToCalendar}
+                  className="w-full sm:w-auto border border-primary text-primary px-8 py-3 rounded-lg font-medium hover:bg-primary/5 transition-smooth hover-lift"
+                >
+                  Add to Calendar
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Optional Story Section */}
-          <div
-            className={`mt-12 pt-12 border-t border-border slide-up-smooth ${isInView ? "" : "opacity-0"}`}
-            style={{ animationDelay: "0.5s" }}
-          >
-            <h2 className="font-playfair text-4xl md:text-5xl text-primary mb-8 text-center">Our Story</h2>
-            <div className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-border space-y-4 hover-lift transition-smooth-slow">
-              <p className="text-lg text-primary/70 elegant-text leading-relaxed">
-                Our love story began with a shared dream and has blossomed into a beautiful journey. From the moment we
-                met, we knew this was something special. We are grateful for every moment together and excited to
-                celebrate this milestone with all of you.
-              </p>
-              <p className="text-lg text-primary/70 elegant-text leading-relaxed">
-                With your blessings and support, we look forward to starting a new chapter of our lives together.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </section>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Image from "next/image"
 
 export function OpeningGreeting() {
   const [isVisible, setIsVisible] = useState(false)
@@ -10,7 +11,20 @@ export function OpeningGreeting() {
   }, [])
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-ivory via-cream to-ivory px-4">
+    <div className="relative flex items-center justify-center min-h-screen px-4 overflow-hidden">
+      {/* Background photo */}
+      <Image
+        src="/photo.jpg"
+        alt="Pabasara & Lahiru"
+        fill
+        priority
+        className="object-cover"
+        style={{ objectPosition: "center 20%" }}
+      />
+      {/* Soft overlay so text remains legible */}
+      <div className="absolute inset-0 bg-white/50" />
+      {/* Bottom fade into page background */}
+      <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[#f5f0e8] to-transparent pointer-events-none z-10" />
       <style>{`
         @keyframes fadeInScale {
           from {
@@ -43,7 +57,7 @@ export function OpeningGreeting() {
         .stagger-3 { animation-delay: 0.3s; }
       `}</style>
 
-      <div className={`max-w-2xl text-center space-y-4 ${isVisible ? "fade-in-scale" : ""}`}>
+      <div className={`relative z-10 max-w-2xl text-center space-y-4 ${isVisible ? "fade-in-scale" : ""}`}>
         <div className="space-y-3">
           <p
             className={`text-lg md:text-xl text-primary/80 tracking-wide elegant-text slide-up-text stagger-1 ${isVisible ? "" : "opacity-0"}`}

@@ -11,25 +11,25 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await db.execute(`
-      SELECT
-        r.name,
-        r.attending,
-        r.guest_count,
-        r.invite_code,
-        COALESCE(i.family_name, '') AS family_name,
-        COALESCE(i.side, '') AS side,
-        r.created_at
-      FROM rsvps r
-      LEFT JOIN invites i ON i.code = r.invite_code COLLATE NOCASE
-      WHERE
-        r.invite_code IS NULL
-        OR r.id = (
-          SELECT id FROM rsvps r2
-          WHERE r2.invite_code = r.invite_code COLLATE NOCASE
-          ORDER BY r2.created_at DESC
-          LIMIT 1
-        )
-      ORDER BY r.created_at ASC
+      SELECT name, attending, guest_count, invite_code, family_name, side, created_at
+      FROM (
+        SELECT
+          r.name,
+          r.attending,
+          r.guest_count,
+          r.invite_code,
+          COALESCE(i.family_name, '') AS family_name,
+          COALESCE(i.side, '')        AS side,
+          r.created_at,
+          CASE
+            WHEN r.invite_code IS NULL THEN 1
+            ELSE ROW_NUMBER() OVER (PARTITION BY r.invite_code ORDER BY r.created_at DESC)
+          END AS rn
+        FROM rsvps r
+        LEFT JOIN invites i ON i.code = r.invite_code
+      )
+      WHERE rn = 1
+      ORDER BY created_at ASC
     `)
 
     const rows = result.rows.map((row) => {

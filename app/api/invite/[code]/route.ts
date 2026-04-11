@@ -14,6 +14,7 @@ export async function GET(
   }
 
   const { code } = await params
+  const normalizedCode = code.toUpperCase()
   try {
     const result = await db.execute({
       sql: `
@@ -23,12 +24,12 @@ export async function GET(
           i.table_number,
           EXISTS(
             SELECT 1 FROM rsvps r
-            WHERE r.invite_code = i.code COLLATE NOCASE
+            WHERE r.invite_code = i.code
           ) AS already_submitted
         FROM invites i
-        WHERE i.code = ? COLLATE NOCASE
+        WHERE i.code = ?
       `,
-      args: [code],
+      args: [normalizedCode],
     })
 
     if (result.rows.length === 0) {

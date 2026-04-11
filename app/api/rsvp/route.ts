@@ -29,9 +29,11 @@ export async function POST(req: NextRequest) {
     let resolvedGuestCount = 1
 
     if (invite_code) {
+      const normalizedCode = String(invite_code).toUpperCase()
+
       const inviteResult = await db.execute({
-        sql: "SELECT max_guests FROM invites WHERE code = ? COLLATE NOCASE",
-        args: [invite_code],
+        sql: "SELECT max_guests FROM invites WHERE code = ?",
+        args: [normalizedCode],
       })
 
       if (inviteResult.rows.length === 0) {
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      resolvedInviteCode = String(invite_code).toUpperCase()
+      resolvedInviteCode = normalizedCode
       resolvedGuestCount = requestedCount
     }
 

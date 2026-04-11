@@ -19,14 +19,14 @@ export async function GET(req: NextRequest) {
           i.table_number,
           COALESCE(SUM(CASE WHEN r.attending = 1 THEN r.guest_count ELSE 0 END), 0) AS confirmed_guests
         FROM invites i
-        LEFT JOIN rsvps r ON r.invite_code = i.code COLLATE NOCASE
-        WHERE i.code = ? COLLATE NOCASE
+        LEFT JOIN rsvps r ON r.invite_code = i.code
+        WHERE i.code = ?
            OR i.family_name LIKE ?
         GROUP BY i.id
         ORDER BY i.family_name ASC
         LIMIT 10
       `,
-      args: [query, `%${query}%`],
+      args: [query.toUpperCase(), `%${query}%`],
     })
 
     const guests = result.rows as unknown as Array<{
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
             i.table_number,
             COALESCE(SUM(CASE WHEN r.attending = 1 THEN r.guest_count ELSE 0 END), 0) AS confirmed_guests
           FROM invites i
-          LEFT JOIN rsvps r ON r.invite_code = i.code COLLATE NOCASE
+          LEFT JOIN rsvps r ON r.invite_code = i.code
           WHERE i.table_number IN (${placeholders})
             AND i.code NOT IN (${codePlaceholders})
           GROUP BY i.id

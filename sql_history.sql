@@ -21,3 +21,6 @@ ALTER TABLE rsvps ADD COLUMN guest_count INTEGER DEFAULT 1;
 
 ALTER TABLE invites ADD COLUMN side TEXT NOT NULL DEFAULT 'groom';
 ALTER TABLE invites ADD COLUMN table_number TEXT;
+
+-- Index for the rsvps.invite_code JOIN column (run once in Turso dashboard/CLI)
+CREATE INDEX IF NOT EXISTS idx_rsvps_invite_code ON rsvps (invite_code);

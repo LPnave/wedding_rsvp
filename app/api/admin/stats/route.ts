@@ -10,7 +10,7 @@ export async function GET() {
         COUNT(r.id) AS responded,
         COALESCE(SUM(CASE WHEN r.attending = 1 THEN r.guest_count ELSE 0 END), 0) AS confirmed_guests
       FROM invites i
-      LEFT JOIN rsvps r ON r.invite_code = i.code COLLATE NOCASE
+      LEFT JOIN rsvps r ON r.invite_code = i.code
       GROUP BY i.id
     `)
 

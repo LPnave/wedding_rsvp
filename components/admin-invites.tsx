@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
-import { Copy, Check, QrCode, Trash2, MessageCircle, RefreshCw, MoreHorizontal } from "lucide-react"
+import { Copy, Check, QrCode, Trash2, MessageCircle, RefreshCw, MoreHorizontal, Pencil } from "lucide-react"
 import { AdminStatsModal } from "@/components/admin-stats"
 
 interface Invite {
@@ -30,7 +31,12 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   const [tableInput, setTableInput] = useState("")
   const [regeneratingCode, setRegeneratingCode] = useState<number | null>(null)
   const [openMenu, setOpenMenu] = useState<number | null>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
+  const [editingInvite, setEditingInvite] = useState<Invite | null>(null)
+  const [editForm, setEditForm] = useState({ family_name: "", max_guests: "1", side: "groom" })
+  const [editSubmitting, setEditSubmitting] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
   const [filters, setFilters] = useState({ name: "", code: "", side: "all", responded: "all" })
   const router = useRouter()
 
@@ -109,6 +115,39 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
       const data = await res.json()
       setInvites((prev) => prev.map((i) => i.id === id ? { ...i, code: data.code } : i))
     }
+  }
+
+  const openEditModal = (invite: Invite) => {
+    setEditingInvite(invite)
+    setEditForm({ family_name: invite.family_name, max_guests: String(invite.max_guests), side: invite.side })
+    setEditError(null)
+    setOpenMenu(null)
+  }
+
+  const handleEditInvite = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingInvite) return
+    setEditSubmitting(true)
+    setEditError(null)
+    const res = await fetch(`/api/admin/invites/${editingInvite.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "edit", ...editForm }),
+    })
+    if (res.ok) {
+      setInvites((prev) =>
+        prev.map((i) =>
+          i.id === editingInvite.id
+            ? { ...i, family_name: editForm.family_name.trim(), max_guests: parseInt(editForm.max_guests, 10), side: editForm.side }
+            : i
+        )
+      )
+      setEditingInvite(null)
+    } else {
+      const data = await res.json()
+      setEditError(data.error ?? "Failed to update invite")
+    }
+    setEditSubmitting(false)
   }
 
   const handleCopyLink = (code: string) => {
@@ -227,18 +266,40 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
       </a>
 
       {/* Three-dot menu */}
-      <div className="relative">
+      <div>
         <button
-          onClick={() => { setOpenMenu(openMenu === invite.id ? null : invite.id); setConfirmDelete(null) }}
+          onClick={(e) => {
+            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+            setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+            setOpenMenu(openMenu === invite.id ? null : invite.id)
+            setConfirmDelete(null)
+          }}
           title="More options"
           className="p-2 rounded-lg border border-border hover:bg-cream transition-smooth text-muted-foreground"
         >
           <MoreHorizontal className="w-4 h-4" />
         </button>
+      </div>
+    </div>
+  )
 
-        {openMenu === invite.id && (
-          <div className="absolute right-[-60px] top-full mt-1 w-48 bg-white rounded-xl border border-border shadow-lg z-30 overflow-hidden">
-            {confirmDelete === invite.id ? (
+  return (
+    <div className="min-h-screen bg-ivory">
+      {openMenu !== null && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => { setOpenMenu(null); setConfirmDelete(null) }}
+        />
+      )}
+      {openMenu !== null && menuPos && (() => {
+        const openInvite = invites.find((i) => i.id === openMenu)
+        if (!openInvite) return null
+        return createPortal(
+          <div
+            className="fixed w-48 bg-white rounded-xl border border-border shadow-lg z-50 overflow-hidden"
+            style={{ top: menuPos.top, right: menuPos.right }}
+          >
+            {confirmDelete === openInvite.id ? (
               <div className="p-3 space-y-2">
                 <p className="text-xs text-primary font-medium">Delete this invite?</p>
                 <p className="text-xs text-muted-foreground">This cannot be undone.</p>
@@ -250,7 +311,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                     Cancel
                   </button>
                   <button
-                    onClick={() => handleDelete(invite.id)}
+                    onClick={() => handleDelete(openInvite.id)}
                     className="flex-1 text-xs py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-smooth"
                   >
                     Delete
@@ -260,8 +321,16 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
             ) : (
               <>
                 <button
-                  onClick={() => handleRegenerateCode(invite.id)}
-                  disabled={regeneratingCode === invite.id}
+                  onClick={() => openEditModal(openInvite)}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-primary hover:bg-cream transition-smooth"
+                >
+                  <Pencil className="w-4 h-4 shrink-0" />
+                  Edit
+                </button>
+                <div className="border-t border-border" />
+                <button
+                  onClick={() => handleRegenerateCode(openInvite.id)}
+                  disabled={regeneratingCode === openInvite.id}
                   className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-amber-600 hover:bg-amber-50 transition-smooth disabled:opacity-50"
                 >
                   <RefreshCw className="w-4 h-4 shrink-0" />
@@ -269,7 +338,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                 </button>
                 <div className="border-t border-border" />
                 <button
-                  onClick={() => setConfirmDelete(invite.id)}
+                  onClick={() => setConfirmDelete(openInvite.id)}
                   className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-smooth"
                 >
                   <Trash2 className="w-4 h-4 shrink-0" />
@@ -277,19 +346,79 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                 </button>
               </>
             )}
+          </div>,
+          document.body
+        )
+      })()}
+      {/* Edit modal */}
+      {editingInvite && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setEditingInvite(null)} />
+          <div className="relative bg-white rounded-xl border border-border shadow-xl w-full max-w-md p-6 space-y-5">
+            <h3 className="font-playfair text-xl text-primary">Edit Invite</h3>
+            <form onSubmit={handleEditInvite} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-primary mb-1">Family Name</label>
+                <input
+                  type="text"
+                  value={editForm.family_name}
+                  onChange={(e) => setEditForm((p) => ({ ...p, family_name: e.target.value }))}
+                  required
+                  autoFocus
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-white focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-primary mb-1">Max Guests</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={editForm.max_guests}
+                  onChange={(e) => setEditForm((p) => ({ ...p, max_guests: e.target.value }))}
+                  required
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-white focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-primary mb-2">Side</label>
+                <div className="flex gap-6">
+                  {(["groom", "bride"] as const).map((s) => (
+                    <label key={s} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="edit-side"
+                        value={s}
+                        checked={editForm.side === s}
+                        onChange={() => setEditForm((p) => ({ ...p, side: s }))}
+                        className="accent-primary"
+                      />
+                      <span className="text-sm text-primary">{s === "groom" ? "Groom's side" : "Bride's side"}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {editError && <p className="text-sm text-red-500">{editError}</p>}
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setEditingInvite(null)}
+                  className="flex-1 text-sm py-2 rounded-lg border border-border hover:bg-cream transition-smooth"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSubmitting}
+                  className="flex-1 text-sm py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-smooth disabled:opacity-50"
+                >
+                  {editSubmitting ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </div>
-    </div>
-  )
-
-  return (
-    <div className="min-h-screen bg-ivory">
-      {openMenu !== null && (
-        <div
-          className="fixed inset-0 z-20"
-          onClick={() => { setOpenMenu(null); setConfirmDelete(null) }}
-        />
+        </div>,
+        document.body
       )}
       {/* Header */}
       <header className="bg-white border-b border-border px-4 md:px-6 py-4 flex items-center justify-between gap-3">

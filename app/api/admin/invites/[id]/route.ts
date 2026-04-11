@@ -36,6 +36,19 @@ export async function PATCH(
       return NextResponse.json({ error: "Failed to generate unique code" }, { status: 500 })
     }
 
+    // Edit core invite fields
+    if (body.action === "edit") {
+      const { family_name, max_guests, side } = body
+      if (!family_name?.trim() || !max_guests || !side) {
+        return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+      }
+      await db.execute({
+        sql: "UPDATE invites SET family_name = ?, max_guests = ?, side = ? WHERE id = ?",
+        args: [family_name.trim(), parseInt(max_guests, 10), side, id],
+      })
+      return NextResponse.json({ success: true })
+    }
+
     // Update table number
     await db.execute({
       sql: "UPDATE invites SET table_number = ? WHERE id = ?",

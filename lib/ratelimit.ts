@@ -20,9 +20,3 @@ export const rsvpLimiter = new Ratelimit({
   prefix: "rl:rsvp",
 })
 
-// 30 invite lookups per minute per IP (prevents code enumeration)
-export const inviteLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(30, "1 m"),
-  prefix: "rl:invite",
-})

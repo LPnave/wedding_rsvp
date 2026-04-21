@@ -1,18 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { inviteLimiter } from "@/lib/ratelimit"
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ code: string }> }
 ) {
-  const ip = req.headers.get("x-forwarded-for") ?? "127.0.0.1"
-  const { success } = await inviteLimiter.limit(ip)
-
-  if (!success) {
-    return NextResponse.json({ error: "Invite not found" }, { status: 404 })
-  }
-
   const { code } = await params
   const normalizedCode = code.toUpperCase()
   try {

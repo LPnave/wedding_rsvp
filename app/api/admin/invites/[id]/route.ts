@@ -67,10 +67,8 @@ export async function DELETE(
 ) {
   const { id } = await params
   try {
-    await db.execute({
-      sql: "DELETE FROM invites WHERE id = ?",
-      args: [id],
-    })
+    await db.execute({ sql: "DELETE FROM guests WHERE invite_id = ?", args: [id] })
+    await db.execute({ sql: "DELETE FROM invites WHERE id = ?", args: [id] })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Admin invites DELETE error:", error)

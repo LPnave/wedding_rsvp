@@ -4,10 +4,11 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 
-interface FormData {
+interface GuestInfo {
+  id: number
   name: string
-  attendance: string
-  guestCount: number
+  attending: number | null
+  table_number: string | null
 }
 
 interface InviteInfo {
@@ -15,6 +16,13 @@ interface InviteInfo {
   max_guests: number
   table_number: string | null
   already_submitted: boolean
+  guests: GuestInfo[]
+}
+
+interface LegacyFormData {
+  name: string
+  attendance: string
+  guestCount: number
 }
 
 export function RSVPForm() {
@@ -25,15 +33,19 @@ export function RSVPForm() {
   const [inviteLoading, setInviteLoading] = useState(!!inviteCode)
   const [inviteError, setInviteError] = useState<string | null>(null)
 
-  const [formData, setFormData] = useState<FormData>({
+  // Per-guest responses: guest_id → "yes" | "no"
+  const [guestResponses, setGuestResponses] = useState<Record<number, "yes" | "no">>({})
+
+  // Legacy / walk-in form state
+  const [legacyForm, setLegacyForm] = useState<LegacyFormData>({
     name: "",
     attendance: "",
     guestCount: 1,
   })
+
   const [submitted, setSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
 
   useEffect(() => {
     if (!inviteCode) return
@@ -47,7 +59,18 @@ export function RSVPForm() {
         }
         const data: InviteInfo = await res.json()
         setInvite(data)
-        setFormData((prev) => ({ ...prev, guestCount: data.max_guests }))
+
+        // Pre-populate responses for guests that already responded
+        if (data.guests.length > 0) {
+          const existing: Record<number, "yes" | "no"> = {}
+          for (const g of data.guests) {
+            if (g.attending !== null) existing[g.id] = g.attending === 1 ? "yes" : "no"
+          }
+          if (Object.keys(existing).length > 0) setGuestResponses(existing)
+        } else {
+          setLegacyForm((prev) => ({ ...prev, guestCount: Number(data.max_guests) }))
+        }
+
         if (data.already_submitted) setSubmitted(true)
       } catch {
         setInviteError("Could not load invite details. You can still RSVP below.")
@@ -58,10 +81,9 @@ export function RSVPForm() {
     fetchInvite()
   }, [inviteCode])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
+  const allGuestsAnswered = invite?.guests.length
+    ? invite.guests.every((g) => guestResponses[g.id] !== undefined)
+    : legacyForm.attendance !== ""
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,27 +91,58 @@ export function RSVPForm() {
     setError(null)
 
     try {
-      const body: Record<string, unknown> = {
-        name: invite ? invite.family_name : formData.name,
-        attending: formData.attendance,
-      }
-      if (inviteCode && invite) {
-        body.invite_code = inviteCode.toUpperCase()
-        body.guest_count = formData.guestCount
-      }
+      if (inviteCode && invite && invite.guests.length > 0) {
+        // Per-guest RSVP flow
+        const responses = invite.guests.map((g) => ({
+          guest_id: g.id,
+          attending: guestResponses[g.id] ?? "no",
+        }))
 
-      const res = await fetch("/api/rsvp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
+        const res = await fetch("/api/rsvp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            invite_code: inviteCode.toUpperCase(),
+            responses,
+          }),
+        })
 
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error ?? "Something went wrong")
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.error ?? "Something went wrong")
+        }
+
+        // Re-fetch invite to get latest table numbers for success display
+        const updatedRes = await fetch(`/api/invite/${encodeURIComponent(inviteCode)}`)
+        if (updatedRes.ok) {
+          setInvite(await updatedRes.json())
+        }
+
+        setSubmitted(true)
+      } else {
+        // Legacy / walk-in flow
+        const body: Record<string, unknown> = {
+          name: invite ? invite.family_name : legacyForm.name,
+          attending: legacyForm.attendance,
+        }
+        if (inviteCode && invite) {
+          body.invite_code = inviteCode.toUpperCase()
+          body.guest_count = legacyForm.guestCount
+        }
+
+        const res = await fetch("/api/rsvp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.error ?? "Something went wrong")
+        }
+
+        setSubmitted(true)
       }
-
-      setSubmitted(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit RSVP. Please try again.")
     } finally {
@@ -151,82 +204,122 @@ export function RSVPForm() {
                 </div>
               )}
 
-              {/* Name Input — only shown when no invite code */}
-              {!invite && (
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-primary mb-2">
-                    Your Name
-                  </label>
-                  <input
-                    id="name"
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    required
-                    placeholder="Enter your full name"
-                    className="input-focus w-full px-4 py-3 rounded-lg border border-border bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-smooth"
-                  />
-                </div>
-              )}
-
-              {/* Attendance Confirmation */}
-              <div>
-                <label className="block text-sm font-medium text-primary mb-3">Will you be able to join us?</label>
-                <div className="flex gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setFormData((prev) => ({ ...prev, attendance: "yes" }))}
-                    className={`flex-1 px-4 py-3 rounded-lg font-medium transition-smooth border-2 ${
-                      formData.attendance === "yes"
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-white text-primary border-border hover:border-primary hover:bg-primary/5"
-                    }`}
-                  >
-                    Yes, I will attend
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData((prev) => ({ ...prev, attendance: "no" }))}
-                    className={`flex-1 px-4 py-3 rounded-lg font-medium transition-smooth border-2 ${
-                      formData.attendance === "no"
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-white text-primary border-border hover:border-primary hover:bg-primary/5"
-                    }`}
-                  >
-                    No, I cannot attend
-                  </button>
-                </div>
-              </div>
-
-              {/* Guest count — only shown when attending via invite */}
-              {invite && formData.attendance === "yes" && invite.max_guests > 1 && (
-                <div>
-                  <label htmlFor="guestCount" className="block text-sm font-medium text-primary mb-2">
-                    How many guests will be attending?
-                  </label>
-                  <select
-                    id="guestCount"
-                    name="guestCount"
-                    value={formData.guestCount}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 rounded-lg border border-border bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-smooth"
-                  >
-                    {Array.from({ length: invite.max_guests }, (_, i) => i + 1).map((n) => (
-                      <option key={n} value={n}>
-                        {n} guest{n !== 1 ? "s" : ""}
-                      </option>
+              {/* Per-guest attendance checklist */}
+              {invite && invite.guests.length > 0 ? (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-primary">Please confirm attendance for each guest:</p>
+                  <div className="space-y-2">
+                    {invite.guests.map((guest) => (
+                      <div
+                        key={guest.id}
+                        className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-cream/30"
+                      >
+                        <span className="text-sm text-primary font-medium truncate">{guest.name}</span>
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setGuestResponses((prev) => ({ ...prev, [guest.id]: "yes" }))}
+                            className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-smooth border-2 ${
+                              guestResponses[guest.id] === "yes"
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-white text-primary border-border hover:border-primary hover:bg-primary/5"
+                            }`}
+                          >
+                            Attending
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGuestResponses((prev) => ({ ...prev, [guest.id]: "no" }))}
+                            className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-smooth border-2 ${
+                              guestResponses[guest.id] === "no"
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-white text-primary border-border hover:border-primary hover:bg-primary/5"
+                            }`}
+                          >
+                            Not attending
+                          </button>
+                        </div>
+                      </div>
                     ))}
-                  </select>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  {/* Name input — walk-in only */}
+                  {!invite && (
+                    <div>
+                      <label htmlFor="name" className="block text-sm font-medium text-primary mb-2">
+                        Your Name
+                      </label>
+                      <input
+                        id="name"
+                        type="text"
+                        value={legacyForm.name}
+                        onChange={(e) => setLegacyForm((p) => ({ ...p, name: e.target.value }))}
+                        required
+                        placeholder="Enter your full name"
+                        className="input-focus w-full px-4 py-3 rounded-lg border border-border bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-smooth"
+                      />
+                    </div>
+                  )}
+
+                  {/* Single attendance toggle (legacy / no guests registered) */}
+                  <div>
+                    <label className="block text-sm font-medium text-primary mb-3">Will you be able to join us?</label>
+                    <div className="flex gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setLegacyForm((p) => ({ ...p, attendance: "yes" }))}
+                        className={`flex-1 px-4 py-3 rounded-lg font-medium transition-smooth border-2 ${
+                          legacyForm.attendance === "yes"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-white text-primary border-border hover:border-primary hover:bg-primary/5"
+                        }`}
+                      >
+                        Yes, I will attend
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLegacyForm((p) => ({ ...p, attendance: "no" }))}
+                        className={`flex-1 px-4 py-3 rounded-lg font-medium transition-smooth border-2 ${
+                          legacyForm.attendance === "no"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-white text-primary border-border hover:border-primary hover:bg-primary/5"
+                        }`}
+                      >
+                        No, I cannot attend
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Guest count — invite with no registered guests */}
+                  {invite && legacyForm.attendance === "yes" && invite.max_guests > 1 && (
+                    <div>
+                      <label htmlFor="guestCount" className="block text-sm font-medium text-primary mb-2">
+                        How many guests will be attending?
+                      </label>
+                      <select
+                        id="guestCount"
+                        value={legacyForm.guestCount}
+                        onChange={(e) => setLegacyForm((p) => ({ ...p, guestCount: parseInt(e.target.value, 10) }))}
+                        className="w-full px-4 py-3 rounded-lg border border-border bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-smooth"
+                      >
+                        {Array.from({ length: invite.max_guests }, (_, i) => i + 1).map((n) => (
+                          <option key={n} value={n}>
+                            {n} guest{n !== 1 ? "s" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </>
               )}
 
               {error && <p className="text-sm text-center text-red-500">{error}</p>}
 
-              {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !allGuestsAnswered}
                 className="w-full bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed hover-lift"
               >
                 {isSubmitting ? "Submitting..." : "Submit RSVP"}
@@ -250,11 +343,36 @@ export function RSVPForm() {
             <p className="text-primary/70 elegant-text">
               We have received your RSVP and truly appreciate your response.
             </p>
-            {invite?.table_number && (
+
+            {/* Per-guest table display */}
+            {invite && invite.guests.length > 0 && invite.guests.some((g) => g.table_number) && (
+              <div className="mt-4 pt-4 border-t border-border text-left">
+                <p className="text-xs text-muted-foreground uppercase tracking-widest text-center mb-3">Your Table Assignments</p>
+                <div className="space-y-2">
+                  {invite.guests.map((g) => (
+                    <div key={g.id} className="flex items-center justify-between py-1.5 px-1">
+                      <span className="text-sm text-primary">{g.name}</span>
+                      {g.table_number ? (
+                        <div className="text-right">
+                          <span className="text-xs text-muted-foreground mr-1">Table</span>
+                          <span className="font-playfair text-2xl text-primary">{g.table_number}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">TBA</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground text-center mt-3">Please show the QR or this invitation at the entrance</p>
+              </div>
+            )}
+
+            {/* Legacy: single table number */}
+            {invite && invite.guests.length === 0 && invite.table_number && (
               <div className="mt-4 pt-4 border-t border-border">
                 <p className="text-sm text-muted-foreground uppercase tracking-widest mb-1">Your Table</p>
                 <p className="font-playfair text-5xl text-primary">{invite.table_number}</p>
-                <p className="text-xs text-muted-foreground mt-1">Please show this at the entrance</p>
+                <p className="text-xs text-muted-foreground mt-1">Please show the QR or this invitation at the entrance</p>
               </div>
             )}
           </div>

@@ -5,11 +5,16 @@ export async function GET() {
   try {
     const result = await db.execute(`
       SELECT
+        i.id,
         i.side,
         i.max_guests,
-        COUNT(r.id) AS responded,
-        COALESCE(SUM(CASE WHEN r.attending = 1 THEN r.guest_count ELSE 0 END), 0) AS confirmed_guests
+        COUNT(DISTINCT g.id)                                                  AS actual_guest_count,
+        COALESCE(SUM(CASE WHEN g.attending = 1 THEN 1 ELSE 0 END), 0)        AS confirmed_guests_new,
+        COALESCE(SUM(CASE WHEN g.attending IS NOT NULL THEN 1 ELSE 0 END), 0) AS responded_guests,
+        MAX(CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END)                     AS has_rsvp,
+        COALESCE(SUM(CASE WHEN r.attending = 1 THEN r.guest_count ELSE 0 END), 0) AS confirmed_guests_legacy
       FROM invites i
+      LEFT JOIN guests g ON g.invite_id = i.id
       LEFT JOIN rsvps r ON r.invite_code = i.code
       GROUP BY i.id
     `)
@@ -17,27 +22,47 @@ export async function GET() {
     const rows = result.rows as unknown as Array<{
       side: string
       max_guests: number
-      responded: number
-      confirmed_guests: number
+      actual_guest_count: number
+      confirmed_guests_new: number
+      responded_guests: number
+      has_rsvp: number
+      confirmed_guests_legacy: number
     }>
+
+    const getExpected = (r: (typeof rows)[number]) =>
+      Number(r.actual_guest_count) > 0 ? Number(r.actual_guest_count) : Number(r.max_guests)
+
+    const getConfirmed = (r: (typeof rows)[number]) =>
+      Number(r.actual_guest_count) > 0
+        ? Number(r.confirmed_guests_new)
+        : Number(r.confirmed_guests_legacy)
+
+    const getStatus = (r: (typeof rows)[number]) => {
+      if (Number(r.actual_guest_count) > 0) {
+        if (Number(r.responded_guests) === 0) return "pending"
+        return Number(r.confirmed_guests_new) > 0 ? "attending" : "rejected"
+      }
+      if (!Number(r.has_rsvp)) return "pending"
+      return Number(r.confirmed_guests_legacy) > 0 ? "attending" : "rejected"
+    }
 
     const stats = {
       sides: [
         {
           label: "Groom's Side",
-          expected: rows.filter((r) => r.side === "groom").reduce((s, r) => s + Number(r.max_guests), 0),
-          confirmed: rows.filter((r) => r.side === "groom").reduce((s, r) => s + Number(r.confirmed_guests), 0),
+          expected: rows.filter((r) => r.side === "groom").reduce((s, r) => s + getExpected(r), 0),
+          confirmed: rows.filter((r) => r.side === "groom").reduce((s, r) => s + getConfirmed(r), 0),
         },
         {
           label: "Bride's Side",
-          expected: rows.filter((r) => r.side === "bride").reduce((s, r) => s + Number(r.max_guests), 0),
-          confirmed: rows.filter((r) => r.side === "bride").reduce((s, r) => s + Number(r.confirmed_guests), 0),
+          expected: rows.filter((r) => r.side === "bride").reduce((s, r) => s + getExpected(r), 0),
+          confirmed: rows.filter((r) => r.side === "bride").reduce((s, r) => s + getConfirmed(r), 0),
         },
       ],
       responses: [
-        { label: "Attending", value: rows.filter((r) => Number(r.responded) > 0 && Number(r.confirmed_guests) > 0).length },
-        { label: "Pending",   value: rows.filter((r) => Number(r.responded) === 0).length },
-        { label: "Rejected",  value: rows.filter((r) => Number(r.responded) > 0 && Number(r.confirmed_guests) === 0).length },
+        { label: "Attending", value: rows.filter((r) => getStatus(r) === "attending").length },
+        { label: "Pending",   value: rows.filter((r) => getStatus(r) === "pending").length },
+        { label: "Rejected",  value: rows.filter((r) => getStatus(r) === "rejected").length },
       ],
     }
 

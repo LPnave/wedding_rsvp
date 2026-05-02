@@ -24,3 +24,14 @@ ALTER TABLE invites ADD COLUMN table_number TEXT;
 
 -- Index for the rsvps.invite_code JOIN column (run once in Turso dashboard/CLI)
 CREATE INDEX IF NOT EXISTS idx_rsvps_invite_code ON rsvps (invite_code);
+
+-- Individual guest records linked to invites
+CREATE TABLE IF NOT EXISTS guests (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  invite_id    INTEGER NOT NULL REFERENCES invites(id) ON DELETE CASCADE,
+  name         TEXT NOT NULL,
+  table_number TEXT,
+  attending    INTEGER,
+  created_at   TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_guests_invite_id ON guests (invite_id);

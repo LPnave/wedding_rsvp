@@ -5,9 +5,16 @@ import { useRouter } from "next/navigation"
 import { Search, ScanLine, X } from "lucide-react"
 
 interface TableMate {
+  name: string
   family_name: string
-  max_guests: number
-  confirmed_guests: number
+}
+
+interface GuestEntry {
+  id: number
+  name: string
+  table_number: string | null
+  attending: number | null
+  table_mates: TableMate[]
 }
 
 interface GuestResult {
@@ -16,7 +23,8 @@ interface GuestResult {
   max_guests: number
   table_number: string | null
   confirmed_guests: number
-  table_mates?: TableMate[]
+  guests: GuestEntry[]
+  table_mates: TableMate[]
 }
 
 export function UsherPortal() {
@@ -198,7 +206,7 @@ export function UsherPortal() {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Name or invite code..."
+                  placeholder="Name, family or invite code..."
                   autoFocus
                   className="w-full pl-9 pr-4 py-3 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 />
@@ -236,41 +244,88 @@ export function UsherPortal() {
 
         {results && results.length > 0 && (
           <div className="space-y-4">
-            {results.map((guest) => (
-              <div key={guest.code} className="bg-white rounded-2xl border border-border p-6 space-y-4">
+            {results.map((result) => (
+              <div key={result.code} className="bg-white rounded-2xl border border-border p-6 space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="font-playfair text-xl text-primary">{guest.family_name}</h2>
-                    <p className="text-xs font-mono text-muted-foreground mt-0.5">{guest.code}</p>
+                    <h2 className="font-playfair text-xl text-primary">{result.family_name}</h2>
+                    <p className="text-xs font-mono text-muted-foreground mt-0.5">{result.code}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground uppercase tracking-widest">Guests</p>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-muted-foreground uppercase tracking-widest">
+                      {result.guests.length > 0 ? "Guests" : "Group"}
+                    </p>
                     <p className="text-lg font-semibold text-primary">
-                      {Number(guest.confirmed_guests) > 0 ? guest.confirmed_guests : guest.max_guests}
+                      {result.guests.length > 0 ? result.guests.length : (Number(result.confirmed_guests) > 0 ? result.confirmed_guests : result.max_guests)}
                     </p>
                   </div>
                 </div>
 
-                {guest.table_number ? (
+                {result.guests.length > 0 ? (
+                  // Per-guest table display
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-border overflow-hidden">
+                      {result.guests.map((g, idx) => (
+                        <div
+                          key={g.id}
+                          className={`px-4 py-3 flex items-center justify-between gap-3 ${idx > 0 ? "border-t border-border" : ""}`}
+                        >
+                          <span className="text-sm text-primary font-medium">{g.name}</span>
+                          {g.table_number ? (
+                            <div className="text-right shrink-0">
+                              <p className="text-xs text-muted-foreground uppercase tracking-widest">Table</p>
+                              <p className="font-playfair text-2xl text-primary leading-tight">{g.table_number}</p>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-lg shrink-0">
+                              Table TBA
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Table-mates grouped by table number */}
+                    {(() => {
+                      const tableGroups = result.guests.reduce<Record<string, TableMate[]>>((acc, g) => {
+                        if (!g.table_number || g.table_mates.length === 0) return acc
+                        if (!acc[g.table_number]) acc[g.table_number] = g.table_mates
+                        return acc
+                      }, {})
+                      return Object.entries(tableGroups).map(([tableNum, mates]) => (
+                        <div key={tableNum} className="rounded-xl border border-border p-3 space-y-2">
+                          <p className="text-xs text-muted-foreground uppercase tracking-widest">Others at Table {tableNum}</p>
+                          <ul className="space-y-1.5">
+                            {mates.map((mate, i) => (
+                              <li key={i} className="flex items-center justify-between gap-2">
+                                <span className="text-sm text-primary">{mate.name}</span>
+                                {mate.name !== mate.family_name && (
+                                  <span className="text-xs text-muted-foreground shrink-0">{mate.family_name}</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))
+                    })()}
+                  </div>
+                ) : result.table_number ? (
+                  // Legacy: single invite-level table
                   <div className="space-y-3">
                     <div className="bg-cream rounded-xl p-4 text-center">
                       <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Table Number</p>
-                      <p className="font-playfair text-6xl text-primary">{guest.table_number}</p>
+                      <p className="font-playfair text-6xl text-primary">{result.table_number}</p>
                     </div>
 
-                    {guest.table_mates && guest.table_mates.length > 0 && (
+                    {result.table_mates && result.table_mates.length > 0 && (
                       <div className="rounded-xl border border-border p-3 space-y-2">
                         <p className="text-xs text-muted-foreground uppercase tracking-widest">Others at this table</p>
                         <ul className="space-y-1.5">
-                          {guest.table_mates.map((mate) => {
-                            const count = Number(mate.confirmed_guests) > 0 ? mate.confirmed_guests : mate.max_guests
-                            return (
-                              <li key={mate.family_name} className="flex items-center justify-between gap-2">
-                                <span className="text-sm text-primary">{mate.family_name}</span>
-                                <span className="text-xs text-muted-foreground shrink-0">{count} {count === 1 ? "guest" : "guests"}</span>
-                              </li>
-                            )
-                          })}
+                          {result.table_mates.map((mate, i) => (
+                            <li key={i} className="flex items-center justify-between gap-2">
+                              <span className="text-sm text-primary">{mate.name}</span>
+                            </li>
+                          ))}
                         </ul>
                       </div>
                     )}

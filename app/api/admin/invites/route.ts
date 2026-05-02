@@ -3,23 +3,52 @@ import { db } from "@/lib/db"
 
 export async function GET() {
   try {
-    const result = await db.execute(`
-      SELECT
-        i.id,
-        i.code,
-        i.family_name,
-        i.max_guests,
-        i.side,
-        i.table_number,
-        i.created_at,
-        COUNT(r.id) AS responded,
-        COALESCE(SUM(CASE WHEN r.attending = 1 THEN r.guest_count ELSE 0 END), 0) AS confirmed_guests
-      FROM invites i
-      LEFT JOIN rsvps r ON r.invite_code = i.code
-      GROUP BY i.id
-      ORDER BY i.created_at ASC
-    `)
-    return NextResponse.json(result.rows)
+    const [invitesResult, guestsResult] = await Promise.all([
+      db.execute(`
+        SELECT
+          i.id,
+          i.code,
+          i.family_name,
+          i.max_guests,
+          i.side,
+          i.table_number,
+          i.created_at,
+          COUNT(r.id) AS responded,
+          COALESCE(SUM(CASE WHEN r.attending = 1 THEN r.guest_count ELSE 0 END), 0) AS confirmed_guests
+        FROM invites i
+        LEFT JOIN rsvps r ON r.invite_code = i.code
+        GROUP BY i.id
+        ORDER BY i.created_at ASC
+      `),
+      db.execute(
+        "SELECT id, invite_id, name, table_number, attending FROM guests ORDER BY created_at ASC"
+      ),
+    ])
+
+    const guestsByInvite = (
+      guestsResult.rows as unknown as Array<{
+        id: number
+        invite_id: number
+        name: string
+        table_number: string | null
+        attending: number | null
+      }>
+    ).reduce(
+      (acc, g) => {
+        const key = Number(g.invite_id)
+        if (!acc[key]) acc[key] = []
+        acc[key].push(g)
+        return acc
+      },
+      {} as Record<number, { id: number; invite_id: number; name: string; table_number: string | null; attending: number | null }[]>
+    )
+
+    const rows = invitesResult.rows.map((row) => ({
+      ...row,
+      guests: guestsByInvite[Number(row.id)] ?? [],
+    }))
+
+    return NextResponse.json(rows)
   } catch (error) {
     console.error("Admin invites GET error:", error)
     return NextResponse.json({ error: "Failed to fetch invites" }, { status: 500 })

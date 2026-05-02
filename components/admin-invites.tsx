@@ -1,16 +1,25 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import {
   Copy, Check, QrCode, Trash2, MessageCircle, RefreshCw, MoreHorizontal,
-  Pencil, ChevronUp, ChevronDown, Clock, X, Bell, LayoutGrid, List,
+  Pencil, ChevronUp, ChevronDown, ChevronRight, Clock, X, Bell, LayoutGrid, List,
+  UserPlus,
 } from "lucide-react"
 import { AdminStatsModal } from "@/components/admin-stats"
 
 const RSVP_DEADLINE = new Date("2026-06-27")
 const WA_DEFAULT_TEMPLATE = "You're invited to Pabasara & Lahiru's wedding! \uD83C\uDF89\n\nPlease RSVP here: {invite_link}"
+
+interface Guest {
+  id: number
+  invite_id: number
+  name: string
+  table_number: string | null
+  attending: number | null
+}
 
 interface Invite {
   id: number
@@ -22,6 +31,19 @@ interface Invite {
   responded: number
   confirmed_guests: number
   created_at: string
+  guests: Guest[]
+}
+
+type DragItem =
+  | { type: "guest"; id: number; inviteId: number }
+  | { type: "invite"; id: number }
+
+type EditingGuest = {
+  id: number
+  inviteId: number
+  name: string
+  table_number: string
+  attending: number | null
 }
 
 const SORTABLE_COLS = ["Family", "Side", "Status", "Confirmed", "Table #"]
@@ -45,32 +67,35 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [filters, setFilters] = useState({ name: "", code: "", side: "all", responded: "all" })
-  // Feature: sort
   const [sortConfig, setSortConfig] = useState<{ col: string; dir: "asc" | "desc" } | null>(null)
-  // Feature: view toggle
   const [view, setView] = useState<"list" | "seating">("list")
-  // Feature: WhatsApp template
   const [waTemplate, setWaTemplate] = useState<string>(() => {
     if (typeof window === "undefined") return WA_DEFAULT_TEMPLATE
     return localStorage.getItem("wa_template") ?? WA_DEFAULT_TEMPLATE
   })
   const [showTemplateEditor, setShowTemplateEditor] = useState(false)
   const [templateDraft, setTemplateDraft] = useState("")
-  // Feature: undo delete
   const [pendingDeleteInvite, setPendingDeleteInvite] = useState<Invite | null>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Feature: remind pending
   const [showRemindModal, setShowRemindModal] = useState(false)
-  // Feature: deadline banner
   const [deadlineDismissed, setDeadlineDismissed] = useState(false)
-  // Seating header rename
   const [editingTableHeader, setEditingTableHeader] = useState<string | null>(null)
   const [tableHeaderInput, setTableHeaderInput] = useState("")
-  // Seating drag-and-drop
-  const [dragInviteId, setDragInviteId] = useState<number | null>(null)
+  const [dragItem, setDragItem] = useState<DragItem | null>(null)
   const [dragOverTable, setDragOverTable] = useState<string | null>(null)
-  // Extra (empty) tables added via "+ Add Table"
   const [extraTables, setExtraTables] = useState<string[]>([])
+
+  // Guest management state
+  const [expandedInvites, setExpandedInvites] = useState<Set<number>>(new Set())
+  const [addingGuestTo, setAddingGuestTo] = useState<number | null>(null)
+  const [guestFormData, setGuestFormData] = useState({ name: "", table_number: "" })
+  const [guestFormSubmitting, setGuestFormSubmitting] = useState(false)
+  const [editingGuest, setEditingGuest] = useState<EditingGuest | null>(null)
+
+  // Seating panel state
+  const [guestSearch, setGuestSearch] = useState("")
+  const [guestFilter, setGuestFilter] = useState<"all" | "unassigned" | "groom" | "bride">("all")
+  const [selectedGuest, setSelectedGuest] = useState<SeatingCard | null>(null)
 
   const router = useRouter()
 
@@ -83,6 +108,26 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   useEffect(() => { fetchInvites() }, [])
   useEffect(() => () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current) }, [])
 
+  // ── Derived attendance status ────────────────────────────────────────────
+  const getInviteStatus = (invite: Invite): "pending" | "attending" | "rejected" => {
+    if (invite.guests.length > 0) {
+      const hasResponded = invite.guests.some((g) => g.attending !== null)
+      if (!hasResponded) return "pending"
+      return invite.guests.some((g) => g.attending === 1) ? "attending" : "rejected"
+    }
+    if (Number(invite.responded) === 0) return "pending"
+    return Number(invite.confirmed_guests) > 0 ? "attending" : "rejected"
+  }
+
+  const getConfirmedCount = (invite: Invite) =>
+    invite.guests.length > 0
+      ? invite.guests.filter((g) => g.attending === 1).length
+      : Number(invite.confirmed_guests)
+
+  const getTotalCount = (invite: Invite) =>
+    invite.guests.length > 0 ? invite.guests.length : invite.max_guests
+
+  // ── Invite CRUD ──────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
@@ -100,6 +145,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
         max_guests: parseInt(formData.max_guests, 10),
         side: formData.side, table_number: null,
         responded: 0, confirmed_guests: 0, created_at: data.created_at,
+        guests: [],
       }])
       setFormData((p) => ({ ...p, family_name: "", max_guests: "1" }))
     } else {
@@ -113,7 +159,6 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     const invite = invites.find((i) => i.id === id)
     if (!invite) return
     setOpenMenu(null)
-    // Commit any existing pending delete immediately before starting a new one
     if (deleteTimerRef.current && pendingDeleteInvite) {
       clearTimeout(deleteTimerRef.current)
       fetch(`/api/admin/invites/${pendingDeleteInvite.id}`, { method: "DELETE" })
@@ -152,44 +197,34 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     const newValue = tableHeaderInput.trim()
     setEditingTableHeader(null)
     if (!newValue || newValue === oldKey) return
-    const group = seatingGroups[oldKey] ?? []
-    await Promise.all(
-      group.map((invite) =>
-        fetch(`/api/admin/invites/${invite.id}`, {
+    const promises: Promise<unknown>[] = []
+    const updates: ((prev: Invite[]) => Invite[])[] = []
+    for (const invite of invites) {
+      if (invite.guests.length > 0) {
+        for (const g of invite.guests) {
+          if (g.table_number === oldKey) {
+            promises.push(fetch(`/api/admin/guests/${g.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ table_number: newValue }),
+            }))
+          }
+        }
+      } else if (invite.table_number === oldKey) {
+        promises.push(fetch(`/api/admin/invites/${invite.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ table_number: newValue }),
-        })
-      )
-    )
-    setInvites((prev) =>
-      prev.map((i) =>
-        group.some((g) => g.id === i.id) ? { ...i, table_number: newValue } : i
-      )
-    )
-  }
-
-  const handleDropInviteToTable = async (inviteId: number, targetTable: string | null) => {
-    setDragInviteId(null)
-    setDragOverTable(null)
-    setInvites((prev) =>
-      prev.map((i) => i.id === inviteId ? { ...i, table_number: targetTable } : i)
-    )
-    await fetch(`/api/admin/invites/${inviteId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table_number: targetTable }),
-    })
-  }
-
-  const handleAddTable = () => {
-    const existing = [
-      ...invites.filter((i) => i.table_number).map((i) => i.table_number!),
-      ...extraTables,
-    ].map((n) => parseInt(n, 10)).filter((n) => !isNaN(n))
-    const next = existing.length > 0 ? Math.max(...existing) + 1 : 1
-    const newKey = String(next)
-    setExtraTables((prev) => prev.includes(newKey) ? prev : [...prev, newKey])
+        }))
+      }
+    }
+    await Promise.all(promises)
+    setInvites((prev) => prev.map((i) => ({
+      ...i,
+      table_number: i.guests.length === 0 && i.table_number === oldKey ? newValue : i.table_number,
+      guests: i.guests.map((g) => g.table_number === oldKey ? { ...g, table_number: newValue } : g),
+    })))
+    void updates
   }
 
   const handleRegenerateCode = async (id: number) => {
@@ -240,6 +275,148 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     setEditSubmitting(false)
   }
 
+  // ── Guest CRUD ───────────────────────────────────────────────────────────
+  const toggleExpand = (id: number) => {
+    setExpandedInvites((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleAddGuest = async (inviteId: number) => {
+    if (!guestFormData.name.trim()) return
+    setGuestFormSubmitting(true)
+    const res = await fetch("/api/admin/guests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        invite_id: inviteId,
+        name: guestFormData.name.trim(),
+        table_number: guestFormData.table_number.trim() || null,
+      }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      const newGuest: Guest = {
+        id: data.id,
+        invite_id: inviteId,
+        name: guestFormData.name.trim(),
+        table_number: guestFormData.table_number.trim() || null,
+        attending: null,
+      }
+      setInvites((prev) =>
+        prev.map((i) => i.id === inviteId ? { ...i, guests: [...i.guests, newGuest] } : i)
+      )
+      setGuestFormData({ name: "", table_number: "" })
+    }
+    setGuestFormSubmitting(false)
+  }
+
+  const handleUpdateGuest = async (guestId: number, inviteId: number, fields: Partial<Pick<Guest, "name" | "table_number" | "attending">>) => {
+    const res = await fetch(`/api/admin/guests/${guestId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    })
+    if (res.ok) {
+      setInvites((prev) =>
+        prev.map((i) =>
+          i.id === inviteId
+            ? { ...i, guests: i.guests.map((g) => g.id === guestId ? { ...g, ...fields } : g) }
+            : i
+        )
+      )
+    }
+    setEditingGuest(null)
+  }
+
+  const handleDeleteGuest = async (guestId: number, inviteId: number) => {
+    await fetch(`/api/admin/guests/${guestId}`, { method: "DELETE" })
+    setInvites((prev) =>
+      prev.map((i) =>
+        i.id === inviteId ? { ...i, guests: i.guests.filter((g) => g.id !== guestId) } : i
+      )
+    )
+  }
+
+  // ── Seating drag-and-drop ────────────────────────────────────────────────
+  const handleDropToTable = async (targetTable: string | null) => {
+    if (!dragItem) return
+    setDragItem(null)
+    setDragOverTable(null)
+    if (dragItem.type === "guest") {
+      setInvites((prev) =>
+        prev.map((i) =>
+          i.id === dragItem.inviteId
+            ? { ...i, guests: i.guests.map((g) => g.id === dragItem.id ? { ...g, table_number: targetTable } : g) }
+            : i
+        )
+      )
+      await fetch(`/api/admin/guests/${dragItem.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ table_number: targetTable }),
+      })
+    } else {
+      setInvites((prev) =>
+        prev.map((i) => i.id === dragItem.id ? { ...i, table_number: targetTable } : i)
+      )
+      await fetch(`/api/admin/invites/${dragItem.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ table_number: targetTable }),
+      })
+    }
+  }
+
+  const handleAssignCard = async (card: SeatingCard, targetTable: string | null) => {
+    if (card.kind === "guest") {
+      setInvites((prev) =>
+        prev.map((i) =>
+          i.id === card.inviteId
+            ? { ...i, guests: i.guests.map((g) => g.id === card.guestId ? { ...g, table_number: targetTable } : g) }
+            : i
+        )
+      )
+      await fetch(`/api/admin/guests/${card.guestId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ table_number: targetTable }),
+      })
+    } else {
+      setInvites((prev) =>
+        prev.map((i) => i.id === card.inviteId ? { ...i, table_number: targetTable } : i)
+      )
+      await fetch(`/api/admin/invites/${card.inviteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ table_number: targetTable }),
+      })
+    }
+  }
+
+  const handleAddTable = () => {
+    const existing = [
+      ...invites.flatMap((i) =>
+        i.guests.length > 0
+          ? i.guests.filter((g) => g.table_number).map((g) => g.table_number!)
+          : i.table_number ? [i.table_number] : []
+      ),
+      ...extraTables,
+    ].map((n) => parseInt(n, 10)).filter((n) => !isNaN(n))
+    const next = existing.length > 0 ? Math.max(...existing) + 1 : 1
+    const newKey = String(next)
+    setExtraTables((prev) => prev.includes(newKey) ? prev : [...prev, newKey])
+  }
+
+  const handleRemoveTable = (tableKey: string) => {
+    // Only remove from extraTables — real tables (with guests/invites) can't be deleted this way
+    setExtraTables((prev) => prev.filter((t) => t !== tableKey))
+  }
+
+  // ── WA / sharing ─────────────────────────────────────────────────────────
   const buildWaLink = (invite: Invite, template: string) => {
     const inviteLink = `${window.location.origin}/?invite=${invite.code}`
     const msg = template
@@ -307,23 +484,24 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     }
   }
 
-  // --- Derived values ---
-  const totalExpected = invites.reduce((sum, i) => sum + i.max_guests, 0)
-  const totalConfirmed = invites.reduce((sum, i) => sum + Number(i.confirmed_guests), 0)
-  const totalResponded = invites.filter((i) => Number(i.responded) > 0).length
+  // ── Derived values ───────────────────────────────────────────────────────
+  const totalExpected = invites.reduce((sum, i) => sum + getTotalCount(i), 0)
+  const totalConfirmed = invites.reduce((sum, i) => sum + getConfirmedCount(i), 0)
+  const totalResponded = invites.filter((i) => getInviteStatus(i) !== "pending").length
 
   const now = new Date()
-  const isOverdue = (invite: Invite) => now > RSVP_DEADLINE && Number(invite.responded) === 0
+  const isOverdue = (invite: Invite) => now > RSVP_DEADLINE && getInviteStatus(invite) === "pending"
   const overdueCount = invites.filter(isOverdue).length
-  const pendingInvites = invites.filter((i) => Number(i.responded) === 0)
+  const pendingInvites = invites.filter((i) => getInviteStatus(i) === "pending")
 
   const filtered = invites.filter((i) => {
     if (filters.name && !i.family_name.toLowerCase().includes(filters.name.toLowerCase())) return false
     if (filters.code && !i.code.toLowerCase().includes(filters.code.toLowerCase())) return false
     if (filters.side !== "all" && i.side !== filters.side) return false
-    if (filters.responded === "attending" && !(Number(i.responded) > 0 && Number(i.confirmed_guests) > 0)) return false
-    if (filters.responded === "rejected" && !(Number(i.responded) > 0 && Number(i.confirmed_guests) === 0)) return false
-    if (filters.responded === "pending" && Number(i.responded) > 0) return false
+    const status = getInviteStatus(i)
+    if (filters.responded === "attending" && status !== "attending") return false
+    if (filters.responded === "rejected" && status !== "rejected") return false
+    if (filters.responded === "pending" && status !== "pending") return false
     return true
   })
   const hasActiveFilters = filters.name || filters.code || filters.side !== "all" || filters.responded !== "all"
@@ -335,29 +513,66 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
           case "Family":    return dir * a.family_name.localeCompare(b.family_name)
           case "Side":      return dir * a.side.localeCompare(b.side)
           case "Status": {
-            const val = (i: Invite) => Number(i.responded) === 0 ? 0 : Number(i.confirmed_guests) > 0 ? 2 : 1
+            const val = (i: Invite) => { const s = getInviteStatus(i); return s === "pending" ? 0 : s === "attending" ? 2 : 1 }
             return dir * (val(a) - val(b))
           }
-          case "Confirmed": return dir * (Number(a.confirmed_guests) - Number(b.confirmed_guests))
-          case "Table #":   return dir * ((a.table_number ?? "").localeCompare(b.table_number ?? "", undefined, { numeric: true }))
-          default:          return 0
+          case "Confirmed": return dir * (getConfirmedCount(a) - getConfirmedCount(b))
+          case "Table #": {
+            const ta = a.guests.length > 0
+              ? [...new Set(a.guests.filter((g) => g.table_number).map((g) => g.table_number!))].join(",")
+              : (a.table_number ?? "")
+            const tb = b.guests.length > 0
+              ? [...new Set(b.guests.filter((g) => g.table_number).map((g) => g.table_number!))].join(",")
+              : (b.table_number ?? "")
+            return dir * ta.localeCompare(tb, undefined, { numeric: true })
+          }
+          default: return 0
         }
       })
     : filtered
 
-  const seatingGroups = invites.reduce<Record<string, Invite[]>>((acc, inv) => {
-    const key = inv.table_number ?? "__unassigned__"
+  // ── Seating derived data ─────────────────────────────────────────────────
+  type SeatingCard =
+    | { kind: "guest"; guestId: number; inviteId: number; guestName: string; familyName: string; attending: number | null; tableNumber: string | null; side: string }
+    | { kind: "invite"; inviteId: number; familyName: string; confirmedGuests: number; maxGuests: number; tableNumber: string | null; side: string }
+
+  const seatingCards: SeatingCard[] = [
+    ...invites.flatMap((i) =>
+      i.guests.map((g) => ({
+        kind: "guest" as const,
+        guestId: g.id,
+        inviteId: i.id,
+        guestName: g.name,
+        familyName: i.family_name,
+        attending: g.attending,
+        tableNumber: g.table_number,
+        side: i.side,
+      }))
+    ),
+    ...invites.filter((i) => i.guests.length === 0).map((i) => ({
+      kind: "invite" as const,
+      inviteId: i.id,
+      familyName: i.family_name,
+      confirmedGuests: Number(i.confirmed_guests),
+      maxGuests: i.max_guests,
+      tableNumber: i.table_number,
+      side: i.side,
+    })),
+  ]
+
+  const seatingGrouped = seatingCards.reduce<Record<string, SeatingCard[]>>((acc, card) => {
+    const key = card.tableNumber ?? "__unassigned__"
     if (!acc[key]) acc[key] = []
-    acc[key].push(inv)
+    acc[key].push(card)
     return acc
   }, {})
-  const assignedTables = Object.keys(seatingGroups)
-    .filter((k) => k !== "__unassigned__")
+
+  const assignedTables = [...new Set(seatingCards.filter((c) => c.tableNumber).map((c) => c.tableNumber!))]
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
   const allSeatingTables = [...new Set([...assignedTables, ...extraTables])]
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 
-  // --- Helper renderers ---
+  // ── Helper renderers ─────────────────────────────────────────────────────
   const sortTh = (label: string) => {
     const sortable = SORTABLE_COLS.includes(label)
     const isActive = sortConfig?.col === label
@@ -380,20 +595,33 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   }
 
   const statusBadge = (invite: Invite) => {
-    const responded = Number(invite.responded) > 0
-    const confirmed = Number(invite.confirmed_guests) > 0
-    if (!responded) return (
+    const status = getInviteStatus(invite)
+    if (status === "pending") return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
         {isOverdue(invite) && <Clock className="w-3 h-3" />}
         Pending
       </span>
     )
-    if (confirmed) return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Attending</span>
+    if (status === "attending") return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Attending</span>
     return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Rejected</span>
   }
 
-  const tableNumberCell = (invite: Invite) =>
-    editingTable === invite.id ? (
+  const guestAttendingBadge = (attending: number | null) => {
+    if (attending === null) return <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">Pending</span>
+    if (attending === 1) return <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">Attending</span>
+    return <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">Not attending</span>
+  }
+
+  const tableNumberCell = (invite: Invite) => {
+    if (invite.guests.length > 0) {
+      const tables = [...new Set(invite.guests.filter((g) => g.table_number).map((g) => g.table_number!))]
+      return (
+        <span className="text-xs text-muted-foreground">
+          {tables.length === 0 ? "—" : tables.length === 1 ? `Table ${tables[0]}` : `${tables.length} tables`}
+        </span>
+      )
+    }
+    return editingTable === invite.id ? (
       <div className="flex items-center gap-1">
         <input
           type="text"
@@ -420,6 +648,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
         {invite.table_number ? `Table ${invite.table_number}` : "—"}
       </button>
     )
+  }
 
   const actionButtons = (invite: Invite) => (
     <div className="flex items-center gap-2">
@@ -452,10 +681,183 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     </div>
   )
 
+  // ── Guest sub-table rows ─────────────────────────────────────────────────
+  const renderGuestRow = (guest: Guest, inviteId: number) => {
+    const saveGuest = () => {
+      if (!editingGuest) return
+      handleUpdateGuest(editingGuest.id, inviteId, {
+        name: editingGuest.name,
+        table_number: editingGuest.table_number.trim() || null,
+        attending: editingGuest.attending,
+      })
+    }
+
+    if (editingGuest?.id === guest.id) {
+      return (
+        <tr key={guest.id} className="bg-white">
+          <td className="px-4 py-2">
+            <input
+              type="text"
+              value={editingGuest.name}
+              onChange={(e) => setEditingGuest((p) => p ? { ...p, name: e.target.value } : null)}
+              onKeyDown={(e) => { if (e.key === "Enter") saveGuest(); if (e.key === "Escape") setEditingGuest(null) }}
+              autoFocus
+              className="w-full px-2 py-1 text-sm rounded border border-border focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </td>
+          <td className="px-4 py-2">
+            <input
+              type="text"
+              value={editingGuest.table_number}
+              onChange={(e) => setEditingGuest((p) => p ? { ...p, table_number: e.target.value } : null)}
+              onKeyDown={(e) => { if (e.key === "Enter") saveGuest(); if (e.key === "Escape") setEditingGuest(null) }}
+              placeholder="e.g. 5"
+              className="w-20 px-2 py-1 text-sm rounded border border-border focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </td>
+          <td className="px-4 py-2">
+            <div className="flex gap-1.5">
+              {([1, 0, null] as const).map((val) => (
+                <button
+                  key={String(val)}
+                  onClick={() => setEditingGuest((p) => p ? { ...p, attending: val } : null)}
+                  className={`px-2 py-0.5 text-xs rounded-full border transition-smooth ${
+                    editingGuest.attending === val
+                      ? val === 1 ? "bg-green-100 text-green-700 border-green-300"
+                        : val === 0 ? "bg-red-100 text-red-700 border-red-300"
+                        : "bg-amber-100 text-amber-700 border-amber-300"
+                      : "bg-white text-muted-foreground border-border hover:border-primary"
+                  }`}
+                >
+                  {val === 1 ? "Yes" : val === 0 ? "No" : "?"}
+                </button>
+              ))}
+            </div>
+          </td>
+          <td className="px-4 py-2">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={saveGuest}
+                className="p-1 rounded bg-primary text-primary-foreground"
+              >
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setEditingGuest(null)}
+                className="p-1 rounded border border-border hover:bg-cream text-muted-foreground"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </td>
+        </tr>
+      )
+    }
+    return (
+      <tr key={guest.id} className="bg-white hover:bg-cream/30 transition-smooth">
+        <td className="px-4 py-2.5 text-sm text-primary">{guest.name}</td>
+        <td className="px-4 py-2.5 text-xs text-muted-foreground">
+          {guest.table_number ? `Table ${guest.table_number}` : "—"}
+        </td>
+        <td className="px-4 py-2.5">{guestAttendingBadge(guest.attending)}</td>
+        <td className="px-4 py-2.5">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setEditingGuest({ id: guest.id, inviteId, name: guest.name, table_number: guest.table_number ?? "", attending: guest.attending })}
+              className="p-1 rounded hover:bg-cream text-muted-foreground hover:text-primary transition-smooth"
+              title="Edit guest"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleDeleteGuest(guest.id, inviteId)}
+              className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-smooth"
+              title="Remove guest"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    )
+  }
+
+  const renderGuestSubRow = (invite: Invite) => (
+    <tr key={`guests-${invite.id}`}>
+      <td colSpan={7} className="px-6 pt-0 pb-4 bg-cream/20">
+        <div className="rounded-lg border border-border overflow-hidden">
+          {invite.guests.length > 0 && (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-cream/70 text-left">
+                  <th className="px-4 py-2 text-xs font-medium text-muted-foreground">Name</th>
+                  <th className="px-4 py-2 text-xs font-medium text-muted-foreground">Table</th>
+                  <th className="px-4 py-2 text-xs font-medium text-muted-foreground">Status</th>
+                  <th className="px-4 py-2 text-xs font-medium text-muted-foreground" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {invite.guests.map((g) => renderGuestRow(g, invite.id))}
+              </tbody>
+            </table>
+          )}
+          {addingGuestTo === invite.id ? (
+            <div className="px-4 py-3 bg-white border-t border-border flex items-center gap-2 flex-wrap">
+              <input
+                type="text"
+                placeholder="Guest name"
+                value={guestFormData.name}
+                onChange={(e) => setGuestFormData((p) => ({ ...p, name: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === "Enter") handleAddGuest(invite.id) }}
+                autoFocus
+                className="flex-1 min-w-[140px] px-3 py-1.5 text-sm rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+              <input
+                type="text"
+                placeholder="Table (optional)"
+                value={guestFormData.table_number}
+                onChange={(e) => setGuestFormData((p) => ({ ...p, table_number: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === "Enter") handleAddGuest(invite.id) }}
+                className="w-28 px-3 py-1.5 text-sm rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+              <button
+                onClick={() => handleAddGuest(invite.id)}
+                disabled={guestFormSubmitting || !guestFormData.name.trim()}
+                className="px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-smooth disabled:opacity-50"
+              >
+                Add
+              </button>
+              <button
+                onClick={() => { setAddingGuestTo(null); setGuestFormData({ name: "", table_number: "" }) }}
+                className="p-1 rounded text-muted-foreground hover:text-primary transition-smooth"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="px-4 py-2.5 border-t border-border bg-white">
+              {invite.guests.length === 0 && (
+                <p className="text-xs text-muted-foreground mb-2">
+                  No individual guests added. Add guests to enable per-person table assignments and RSVP tracking.
+                </p>
+              )}
+              <button
+                onClick={() => { setAddingGuestTo(invite.id); setGuestFormData({ name: "", table_number: "" }) }}
+                className="text-xs text-accent hover:text-primary flex items-center gap-1.5 transition-smooth"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                Add guest
+              </button>
+            </div>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+
   // ============================================================
   return (
     <div className="min-h-screen bg-ivory">
-      {/* Dropdown backdrop */}
       {openMenu !== null && (
         <div className="fixed inset-0 z-40" onClick={() => setOpenMenu(null)} />
       )}
@@ -495,7 +897,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
         )
       })()}
 
-      {/* Edit modal */}
+      {/* Edit invite modal */}
       {editingInvite && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/30" onClick={() => setEditingInvite(null)} />
@@ -548,10 +950,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
             </button>
           </div>
           <div className="h-1 bg-primary-foreground/20">
-            <div
-              className="h-full bg-primary-foreground/50 origin-left"
-              style={{ animation: "undoShrink 5s linear forwards" }}
-            />
+            <div className="h-full bg-primary-foreground/50 origin-left" style={{ animation: "undoShrink 5s linear forwards" }} />
           </div>
         </div>,
         document.body
@@ -595,15 +994,9 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
               </div>
             </div>
             <div className="flex gap-3 pt-1">
-              <button onClick={() => setTemplateDraft(WA_DEFAULT_TEMPLATE)} className="text-sm px-4 py-2 rounded-lg border border-border hover:bg-cream transition-smooth whitespace-nowrap">
-                Reset
-              </button>
-              <button onClick={() => setShowTemplateEditor(false)} className="flex-1 text-sm py-2 rounded-lg border border-border hover:bg-cream transition-smooth">
-                Cancel
-              </button>
-              <button onClick={handleSaveTemplate} className="flex-1 text-sm py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-smooth">
-                Save
-              </button>
+              <button onClick={() => setTemplateDraft(WA_DEFAULT_TEMPLATE)} className="text-sm px-4 py-2 rounded-lg border border-border hover:bg-cream transition-smooth whitespace-nowrap">Reset</button>
+              <button onClick={() => setShowTemplateEditor(false)} className="flex-1 text-sm py-2 rounded-lg border border-border hover:bg-cream transition-smooth">Cancel</button>
+              <button onClick={handleSaveTemplate} className="flex-1 text-sm py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-smooth">Save</button>
             </div>
           </div>
         </div>,
@@ -638,7 +1031,6 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                   <a
                     href={buildWaLink(invite, waTemplate)}
                     target="_blank" rel="noopener noreferrer"
-                    title="Send reminder via WhatsApp"
                     className="shrink-0 p-2 rounded-lg border border-green-200 text-green-600 hover:bg-green-50 transition-smooth inline-flex items-center"
                   >
                     <MessageCircle className="w-4 h-4" />
@@ -688,9 +1080,10 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-5 md:space-y-6">
         {/* Summary cards */}
-        <div className="grid grid-cols-3 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
           {[
             { label: "Total Invites", value: invites.length },
+            { label: "Total Guests", value: totalExpected },
             { label: "Responded", value: `${totalResponded} / ${invites.length}` },
             { label: "Confirmed", value: `${totalConfirmed} / ${totalExpected}` },
           ].map((card) => (
@@ -708,7 +1101,6 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
           <div className="flex flex-wrap items-center justify-between gap-2 px-4 md:px-6 py-4 border-b border-border">
             <h2 className="font-medium text-primary">Invite Groups</h2>
             <div className="flex items-center gap-2 flex-wrap">
-              {/* List / Seating toggle */}
               <div className="flex rounded-lg border border-border overflow-hidden">
                 <button
                   onClick={() => setView("list")}
@@ -725,7 +1117,6 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                   <span className="hidden sm:inline">Seating</span>
                 </button>
               </div>
-              {/* WA template button */}
               <button
                 onClick={() => { setTemplateDraft(waTemplate); setShowTemplateEditor(true) }}
                 title="Edit WhatsApp message template"
@@ -733,7 +1124,6 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
               >
                 <MessageCircle className="w-4 h-4" />
               </button>
-              {/* Remind pending */}
               {pendingInvites.length > 0 && (
                 <button
                   onClick={() => setShowRemindModal(true)}
@@ -743,7 +1133,6 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                   <span>Remind ({pendingInvites.length})</span>
                 </button>
               )}
-              {/* Add */}
               <button
                 onClick={() => setShowForm((v) => !v)}
                 className="text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-smooth"
@@ -797,155 +1186,313 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
             </div>
           )}
 
-          {/* Seating view */}
+          {/* ── Seating view ──────────────────────────────────────────────── */}
           {view === "seating" && !loading && (
             <div className="p-4 md:p-6">
               {invites.length === 0 ? (
                 <p className="text-center text-sm text-muted-foreground py-8">No invites yet.</p>
               ) : (
-                <div className="space-y-6">
-                  {/* Table cards grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {allSeatingTables.map((tableKey) => {
-                      const group = seatingGroups[tableKey] ?? []
-                      const totalMax = group.reduce((s, i) => s + i.max_guests, 0)
-                      const totalConfirmedTable = group.reduce((s, i) => s + Number(i.confirmed_guests), 0)
-                      const isOver = dragOverTable === tableKey
-                      return (
-                        <div
-                          key={tableKey}
-                          onDragOver={(e) => { e.preventDefault(); setDragOverTable(tableKey) }}
-                          onDragLeave={(e) => {
-                            if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverTable(null)
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault()
-                            if (dragInviteId !== null) handleDropInviteToTable(dragInviteId, tableKey)
-                          }}
-                          className={`rounded-xl border overflow-hidden transition-smooth ${isOver ? "border-accent ring-2 ring-accent/30 bg-accent/5" : "border-border"}`}
-                        >
-                          {/* Card header */}
-                          <div className="px-4 py-2.5 bg-cream border-b border-border flex items-center justify-between gap-2">
-                            {editingTableHeader === tableKey ? (
-                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                <input
-                                  type="text"
-                                  value={tableHeaderInput}
-                                  onChange={(e) => setTableHeaderInput(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") handleRenameTable(tableKey)
-                                    if (e.key === "Escape") setEditingTableHeader(null)
-                                  }}
-                                  autoFocus
-                                  placeholder="Table name"
-                                  className="w-full px-2 py-0.5 text-sm font-medium rounded border border-border bg-white focus:outline-none focus:ring-2 focus:ring-accent text-primary"
-                                />
-                                <button onClick={() => handleRenameTable(tableKey)} className="p-1 rounded bg-primary text-primary-foreground shrink-0">
-                                  <Check className="w-3 h-3" />
-                                </button>
-                                <button onClick={() => setEditingTableHeader(null)} className="p-1 rounded border border-border hover:bg-white transition-smooth text-muted-foreground shrink-0">
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => { setEditingTableHeader(tableKey); setTableHeaderInput(tableKey) }}
-                                title="Click to rename"
-                                className="text-sm font-medium text-primary hover:text-accent transition-smooth flex items-center gap-1.5 group"
-                              >
-                                Table {tableKey}
-                                <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-50 transition-smooth" />
-                              </button>
-                            )}
-                            {editingTableHeader !== tableKey && (
-                              <span className="text-xs text-muted-foreground shrink-0">{totalConfirmedTable} / {totalMax} seats</span>
-                            )}
-                          </div>
-
-                          {/* Rows */}
-                          <div className="divide-y divide-border">
-                            {group.map((invite) => (
-                              <div
-                                key={invite.id}
-                                draggable
-                                onDragStart={(e) => {
-                                  setDragInviteId(invite.id)
-                                  e.dataTransfer.effectAllowed = "move"
-                                }}
-                                onDragEnd={() => { setDragInviteId(null); setDragOverTable(null) }}
-                                className={`px-4 py-2.5 flex items-center justify-between gap-2 cursor-grab active:cursor-grabbing select-none transition-smooth ${dragInviteId === invite.id ? "opacity-40 bg-cream" : "hover:bg-cream/60"}`}
-                              >
-                                <span className="text-sm text-primary truncate">{invite.family_name}</span>
-                                <span className="text-xs text-muted-foreground shrink-0">{Number(invite.confirmed_guests)} / {invite.max_guests}</span>
-                              </div>
-                            ))}
-                            {group.length === 0 && (
-                              <div className={`px-4 py-4 text-xs text-center transition-smooth ${isOver ? "text-accent" : "text-muted-foreground"}`}>
-                                {isOver ? "Drop here" : "Empty — drag a family here"}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-
-                    {/* Add Table card */}
+                <div className="space-y-3">
+                  {/* Toolbar */}
+                  <div className="flex items-center gap-3 flex-wrap">
                     <button
                       onClick={handleAddTable}
-                      className="rounded-xl border-2 border-dashed border-border hover:border-primary hover:bg-cream/40 transition-smooth flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground hover:text-primary min-h-[100px]"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-dashed border-border hover:border-primary hover:bg-cream/60 transition-smooth text-muted-foreground hover:text-primary"
                     >
-                      <span className="text-2xl leading-none">+</span>
-                      <span className="text-xs font-medium">Add Table</span>
+                      <span className="text-base leading-none font-medium">+</span>
+                      Add Table
                     </button>
+                    {selectedGuest && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          Click a table to assign <span className="font-medium text-primary">{selectedGuest.kind === "guest" ? selectedGuest.guestName : selectedGuest.familyName}</span>
+                        </span>
+                        <button
+                          onClick={() => setSelectedGuest(null)}
+                          className="p-0.5 rounded hover:bg-cream text-muted-foreground hover:text-primary transition-smooth"
+                          title="Cancel selection"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Unassigned */}
-                  {seatingGroups["__unassigned__"] && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                        Unassigned ({seatingGroups["__unassigned__"].length})
-                      </p>
+                  {/* Split layout */}
+                  <div className="flex gap-4 h-[calc(100vh-280px)] min-h-[520px]">
+
+                    {/* ── Left panel: Tables ──────────────────────────────── */}
+                    <div className="w-[58%] overflow-y-auto pr-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2">
+                        {allSeatingTables.map((tableKey) => {
+                          const group = seatingGrouped[tableKey] ?? []
+                          const totalMax = group.reduce((s, c) => s + (c.kind === "guest" ? 1 : c.maxGuests), 0)
+                          const totalConfirmedTable = group.reduce((s, c) => {
+                            if (c.kind === "guest") return s + (c.attending === 1 ? 1 : 0)
+                            return s + c.confirmedGuests
+                          }, 0)
+                          const isOver = dragOverTable === tableKey
+                          const isClickAssign = selectedGuest !== null
+                          return (
+                            <div
+                              key={tableKey}
+                              onDragOver={(e) => { e.preventDefault(); setDragOverTable(tableKey) }}
+                              onDragLeave={(e) => {
+                                if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverTable(null)
+                              }}
+                              onDrop={(e) => { e.preventDefault(); handleDropToTable(tableKey) }}
+                              className={`rounded-xl border overflow-hidden transition-smooth ${isOver ? "border-accent ring-2 ring-accent/30 bg-accent/5" : isClickAssign ? "border-primary/40 ring-1 ring-primary/20" : "border-border"}`}
+                            >
+                              {/* Table header */}
+                              <div
+                                className={`px-4 py-2.5 bg-cream border-b border-border flex items-center justify-between gap-2 ${isClickAssign && editingTableHeader !== tableKey ? "cursor-pointer hover:bg-primary/10" : ""}`}
+                                onClick={() => {
+                                  if (isClickAssign && selectedGuest && editingTableHeader !== tableKey) {
+                                    handleAssignCard(selectedGuest, tableKey)
+                                    setSelectedGuest(null)
+                                  }
+                                }}
+                              >
+                                {editingTableHeader === tableKey ? (
+                                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                    <input
+                                      type="text"
+                                      value={tableHeaderInput}
+                                      onChange={(e) => setTableHeaderInput(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") handleRenameTable(tableKey)
+                                        if (e.key === "Escape") setEditingTableHeader(null)
+                                      }}
+                                      autoFocus
+                                      placeholder="Table name"
+                                      className="w-full px-2 py-0.5 text-sm font-medium rounded border border-border bg-white focus:outline-none focus:ring-2 focus:ring-accent text-primary"
+                                    />
+                                    <button onClick={() => handleRenameTable(tableKey)} className="p-1 rounded bg-primary text-primary-foreground shrink-0">
+                                      <Check className="w-3 h-3" />
+                                    </button>
+                                    <button onClick={() => setEditingTableHeader(null)} className="p-1 rounded border border-border hover:bg-white transition-smooth text-muted-foreground shrink-0">
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setEditingTableHeader(tableKey); setTableHeaderInput(tableKey) }}
+                                    title="Click to rename"
+                                    className="text-sm font-medium text-primary hover:text-accent transition-smooth flex items-center gap-1.5 group"
+                                  >
+                                    Table {tableKey}
+                                    <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-50 transition-smooth" />
+                                  </button>
+                                )}
+                                {editingTableHeader !== tableKey && (
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <span className="text-xs text-muted-foreground">{totalConfirmedTable} / {totalMax} seats</span>
+                                    {group.length === 0 && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleRemoveTable(tableKey) }}
+                                        title="Remove empty table"
+                                        className="p-0.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-smooth"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Table entries */}
+                              <div className="divide-y divide-border">
+                                {group.map((card) => {
+                                  const isBeingDragged = card.kind === "guest"
+                                    ? dragItem?.type === "guest" && dragItem.id === card.guestId
+                                    : dragItem?.type === "invite" && dragItem.id === card.inviteId
+                                  if (card.kind === "guest") {
+                                    return (
+                                      <div
+                                        key={`g-${card.guestId}`}
+                                        draggable
+                                        onDragStart={(e) => { setDragItem({ type: "guest", id: card.guestId, inviteId: card.inviteId }); e.dataTransfer.effectAllowed = "move" }}
+                                        onDragEnd={() => { setDragItem(null); setDragOverTable(null) }}
+                                        className={`px-4 py-2.5 flex items-center justify-between gap-2 cursor-grab active:cursor-grabbing select-none transition-smooth ${isBeingDragged ? "opacity-40 bg-cream" : "hover:bg-cream/60"}`}
+                                      >
+                                        <div className="min-w-0">
+                                          <span className="text-sm text-primary truncate block">{card.guestName}</span>
+                                          <span className="text-xs text-muted-foreground truncate block">{card.familyName}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          <span className={`w-2 h-2 rounded-full ${card.attending === 1 ? "bg-green-500" : card.attending === 0 ? "bg-red-400" : "bg-amber-300"}`} />
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); handleAssignCard(card, null) }}
+                                            title="Unassign"
+                                            className="p-0.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-smooth"
+                                          >
+                                            <X className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )
+                                  }
+                                  return (
+                                    <div
+                                      key={`i-${card.inviteId}`}
+                                      draggable
+                                      onDragStart={(e) => { setDragItem({ type: "invite", id: card.inviteId }); e.dataTransfer.effectAllowed = "move" }}
+                                      onDragEnd={() => { setDragItem(null); setDragOverTable(null) }}
+                                      className={`px-4 py-2.5 flex items-center justify-between gap-2 cursor-grab active:cursor-grabbing select-none transition-smooth ${isBeingDragged ? "opacity-40 bg-cream" : "hover:bg-cream/60"}`}
+                                    >
+                                      <div className="min-w-0">
+                                        <span className="text-sm text-primary truncate block">{card.familyName}</span>
+                                        <span className="text-xs text-muted-foreground">{card.confirmedGuests} / {card.maxGuests} guests</span>
+                                      </div>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleAssignCard(card, null) }}
+                                        title="Unassign"
+                                        className="p-0.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-smooth"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  )
+                                })}
+                                {group.length === 0 && (
+                                  <div className={`px-4 py-4 text-xs text-center transition-smooth ${isOver ? "text-accent" : isClickAssign ? "text-primary/50" : "text-muted-foreground"}`}>
+                                    {isOver ? "Drop here" : isClickAssign ? "Click header to assign" : "Empty — drag a guest here"}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                        {allSeatingTables.length === 0 && (
+                          <p className="text-sm text-muted-foreground py-8 col-span-2 text-center">No tables yet. Click &quot;+ Add Table&quot; to get started.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ── Right panel: Guest list ──────────────────────────── */}
+                    <div className="w-[42%] flex flex-col border border-border rounded-xl overflow-hidden bg-white">
+                      {/* Search */}
+                      <div className="px-3 py-2 border-b border-border">
+                        <input
+                          type="text"
+                          placeholder="Search guests..."
+                          value={guestSearch}
+                          onChange={(e) => setGuestSearch(e.target.value)}
+                          className="w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-input focus:outline-none focus:ring-2 focus:ring-accent"
+                        />
+                      </div>
+
+                      {/* Filter tabs */}
+                      <div className="flex border-b border-border bg-cream/50 text-xs shrink-0">
+                        {(["all", "unassigned", "groom", "bride"] as const).map((f) => {
+                          const count = f === "all"
+                            ? seatingCards.length
+                            : f === "unassigned"
+                            ? seatingCards.filter((c) => !c.tableNumber).length
+                            : seatingCards.filter((c) => c.side === f).length
+                          return (
+                            <button
+                              key={f}
+                              onClick={() => setGuestFilter(f)}
+                              className={`flex-1 px-1 py-1.5 transition-smooth ${guestFilter === f ? "bg-white font-medium text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-primary"}`}
+                            >
+                              {f === "groom" ? "Groom's" : f === "bride" ? "Bride's" : f.charAt(0).toUpperCase() + f.slice(1)}
+                              <span className="ml-0.5 opacity-60">({count})</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {/* Guest rows */}
                       <div
+                        className="overflow-y-auto flex-1"
                         onDragOver={(e) => { e.preventDefault(); setDragOverTable("__unassigned__") }}
                         onDragLeave={(e) => {
                           if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverTable(null)
                         }}
-                        onDrop={(e) => {
-                          e.preventDefault()
-                          if (dragInviteId !== null) handleDropInviteToTable(dragInviteId, null)
-                        }}
-                        className={`flex flex-wrap gap-2 min-h-[44px] p-2 rounded-xl border-2 border-dashed transition-smooth ${dragOverTable === "__unassigned__" ? "border-accent bg-accent/5" : "border-transparent"}`}
+                        onDrop={(e) => { e.preventDefault(); handleDropToTable(null) }}
                       >
-                        {seatingGroups["__unassigned__"].map((invite) => (
-                          <span
-                            key={invite.id}
-                            draggable
-                            onDragStart={(e) => {
-                              setDragInviteId(invite.id)
-                              e.dataTransfer.effectAllowed = "move"
-                            }}
-                            onDragEnd={() => { setDragInviteId(null); setDragOverTable(null) }}
-                            className={`px-3 py-1.5 text-sm bg-cream border border-border rounded-lg text-primary cursor-grab active:cursor-grabbing select-none transition-smooth ${dragInviteId === invite.id ? "opacity-40" : "hover:border-primary"}`}
-                          >
-                            {invite.family_name}
-                          </span>
-                        ))}
+                        {(() => {
+                          const q = guestSearch.toLowerCase()
+                          const filtered = seatingCards.filter((card) => {
+                            const name = card.kind === "guest" ? card.guestName : card.familyName
+                            if (q && !name.toLowerCase().includes(q) && !card.familyName.toLowerCase().includes(q)) return false
+                            if (guestFilter === "unassigned" && card.tableNumber) return false
+                            if (guestFilter === "groom" && card.side !== "groom") return false
+                            if (guestFilter === "bride" && card.side !== "bride") return false
+                            return true
+                          })
+
+                          if (filtered.length === 0) {
+                            return (
+                              <p className="text-center text-sm text-muted-foreground py-8">
+                                {q ? "No guests match your search." : "No guests found."}
+                              </p>
+                            )
+                          }
+
+                          return filtered.map((card) => {
+                            const isBeingDragged = card.kind === "guest"
+                              ? dragItem?.type === "guest" && dragItem.id === card.guestId
+                              : dragItem?.type === "invite" && dragItem.id === card.inviteId
+                            const isSelected = selectedGuest !== null && (
+                              card.kind === "guest" && selectedGuest.kind === "guest"
+                                ? card.guestId === (selectedGuest as Extract<SeatingCard, { kind: "guest" }>).guestId
+                                : card.kind === "invite" && selectedGuest.kind === "invite"
+                                  ? card.inviteId === (selectedGuest as Extract<SeatingCard, { kind: "invite" }>).inviteId
+                                  : false
+                            )
+                            const displayName = card.kind === "guest" ? card.guestName : card.familyName
+                            const subLabel = card.kind === "guest" ? card.familyName : `${card.confirmedGuests}/${card.maxGuests} guests`
+                            const attendingDotClass = card.kind === "guest"
+                              ? card.attending === 1 ? "bg-green-500" : card.attending === 0 ? "bg-red-400" : "bg-amber-300"
+                              : null
+
+                            return (
+                              <div
+                                key={card.kind === "guest" ? `g-${card.guestId}` : `i-${card.inviteId}`}
+                                draggable
+                                onDragStart={(e) => {
+                                  if (card.kind === "guest") {
+                                    setDragItem({ type: "guest", id: card.guestId, inviteId: card.inviteId })
+                                  } else {
+                                    setDragItem({ type: "invite", id: card.inviteId })
+                                  }
+                                  e.dataTransfer.effectAllowed = "move"
+                                  e.stopPropagation()
+                                }}
+                                onDragEnd={() => { setDragItem(null); setDragOverTable(null) }}
+                                onClick={() => setSelectedGuest(isSelected ? null : card)}
+                                className={`px-4 py-2.5 flex items-center gap-3 border-b border-border cursor-pointer select-none transition-smooth ${isSelected ? "bg-primary/5 ring-inset ring-1 ring-primary/40" : isBeingDragged ? "opacity-40" : card.tableNumber ? "opacity-70 hover:opacity-100 hover:bg-cream/60" : "hover:bg-cream/60"}`}
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <span className="text-sm text-primary truncate block">{displayName}</span>
+                                  <span className="text-xs text-muted-foreground truncate block">{subLabel}</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {card.tableNumber ? (
+                                    <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary font-medium">T{card.tableNumber}</span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 text-xs rounded-full bg-amber-50 text-amber-600 border border-amber-200">—</span>
+                                  )}
+                                  {attendingDotClass && <span className={`w-2 h-2 rounded-full shrink-0 ${attendingDotClass}`} />}
+                                </div>
+                              </div>
+                            )
+                          })
+                        })()}
                       </div>
                     </div>
-                  )}
 
-                  {allSeatingTables.length === 0 && !seatingGroups["__unassigned__"] && (
-                    <p className="text-center text-sm text-muted-foreground py-8">No tables assigned yet.</p>
-                  )}
+                  </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* List view */}
+          {/* ── List view ─────────────────────────────────────────────────── */}
           {view === "list" && (
             <>
-              {/* Filters */}
               {!loading && invites.length > 0 && (
                 <div className="px-4 md:px-6 py-3 border-b border-border bg-white flex flex-wrap gap-2 md:gap-3 items-center">
                   <input type="text" placeholder="Search name..." value={filters.name} onChange={(e) => setFilters((p) => ({ ...p, name: e.target.value }))} className="px-3 py-1.5 text-sm rounded-lg border border-border bg-input focus:outline-none focus:ring-2 focus:ring-accent flex-1 min-w-0 sm:flex-none sm:w-40" />
@@ -990,19 +1537,42 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                       </thead>
                       <tbody className="divide-y divide-border">
                         {sortedFiltered.map((invite) => (
-                          <tr key={invite.id} className="hover:bg-cream/50 transition-smooth">
-                            <td className="px-6 py-4 font-medium text-primary">{invite.family_name}</td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${invite.side === "bride" ? "bg-pink-100 text-pink-700" : "bg-blue-100 text-blue-700"}`}>
-                                {invite.side === "bride" ? "Bride's" : "Groom's"}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{invite.code}</td>
-                            <td className="px-6 py-4">{statusBadge(invite)}</td>
-                            <td className="px-6 py-4 text-center">{Number(invite.confirmed_guests)} / {invite.max_guests}</td>
-                            <td className="px-6 py-4">{tableNumberCell(invite)}</td>
-                            <td className="px-6 py-4">{actionButtons(invite)}</td>
-                          </tr>
+                          <React.Fragment key={invite.id}>
+                            <tr className={`transition-smooth ${expandedInvites.has(invite.id) ? "bg-cream/30" : "hover:bg-cream/50"}`}>
+                              <td className="px-4 py-4">
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => toggleExpand(invite.id)}
+                                    className="p-0.5 rounded hover:bg-cream text-muted-foreground transition-smooth shrink-0"
+                                    title={expandedInvites.has(invite.id) ? "Collapse guests" : "Expand guests"}
+                                  >
+                                    {expandedInvites.has(invite.id)
+                                      ? <ChevronDown className="w-4 h-4" />
+                                      : <ChevronRight className="w-4 h-4" />}
+                                  </button>
+                                  <div className="min-w-0">
+                                    <span className="font-medium text-primary">{invite.family_name}</span>
+                                    {invite.guests.length > 0 && (
+                                      <span className="ml-2 text-xs text-muted-foreground">
+                                        {invite.guests.length}/{invite.max_guests}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${invite.side === "bride" ? "bg-pink-100 text-pink-700" : "bg-blue-100 text-blue-700"}`}>
+                                  {invite.side === "bride" ? "Bride's" : "Groom's"}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{invite.code}</td>
+                              <td className="px-6 py-4">{statusBadge(invite)}</td>
+                              <td className="px-6 py-4 text-center">{getConfirmedCount(invite)} / {getTotalCount(invite)}</td>
+                              <td className="px-6 py-4">{tableNumberCell(invite)}</td>
+                              <td className="px-6 py-4">{actionButtons(invite)}</td>
+                            </tr>
+                            {expandedInvites.has(invite.id) && renderGuestSubRow(invite)}
+                          </React.Fragment>
                         ))}
                       </tbody>
                     </table>
@@ -1013,9 +1583,19 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                     {sortedFiltered.map((invite) => (
                       <div key={invite.id} className="px-4 py-4 space-y-3">
                         <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-medium text-primary truncate">{invite.family_name}</p>
-                            <p className="text-xs font-mono text-muted-foreground mt-0.5">{invite.code}</p>
+                          <div className="min-w-0 flex items-center gap-1.5">
+                            <button
+                              onClick={() => toggleExpand(invite.id)}
+                              className="p-0.5 rounded hover:bg-cream text-muted-foreground transition-smooth shrink-0"
+                            >
+                              {expandedInvites.has(invite.id)
+                                ? <ChevronDown className="w-4 h-4" />
+                                : <ChevronRight className="w-4 h-4" />}
+                            </button>
+                            <div className="min-w-0">
+                              <p className="font-medium text-primary truncate">{invite.family_name}</p>
+                              <p className="text-xs font-mono text-muted-foreground mt-0.5">{invite.code}</p>
+                            </div>
                           </div>
                           <span className={`shrink-0 inline-block px-2 py-0.5 rounded-full text-xs font-medium ${invite.side === "bride" ? "bg-pink-100 text-pink-700" : "bg-blue-100 text-blue-700"}`}>
                             {invite.side === "bride" ? "Bride's" : "Groom's"}
@@ -1023,9 +1603,83 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                         </div>
                         <div className="flex items-center gap-3 flex-wrap">
                           {statusBadge(invite)}
-                          <span className="text-xs text-muted-foreground">{Number(invite.confirmed_guests)} / {invite.max_guests} guests</span>
+                          <span className="text-xs text-muted-foreground">{getConfirmedCount(invite)} / {getTotalCount(invite)} guests</span>
                           <div className="ml-auto">{tableNumberCell(invite)}</div>
                         </div>
+
+                        {/* Mobile guest expansion */}
+                        {expandedInvites.has(invite.id) && (
+                          <div className="rounded-lg border border-border overflow-hidden mt-2">
+                            {invite.guests.length > 0 && (
+                              <div className="divide-y divide-border">
+                                {invite.guests.map((g) => (
+                                  <div key={g.id} className="px-3 py-2.5 bg-white flex items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="text-sm text-primary truncate">{g.name}</p>
+                                      <p className="text-xs text-muted-foreground">{g.table_number ? `Table ${g.table_number}` : "No table"}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      {guestAttendingBadge(g.attending)}
+                                      <button
+                                        onClick={() => setEditingGuest({ id: g.id, inviteId: invite.id, name: g.name, table_number: g.table_number ?? "", attending: g.attending })}
+                                        className="p-1 rounded hover:bg-cream text-muted-foreground hover:text-primary transition-smooth"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteGuest(g.id, invite.id)}
+                                        className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-smooth"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {invite.guests.length === 0 && (
+                              <p className="px-3 py-2 text-xs text-muted-foreground bg-white">No guests added yet.</p>
+                            )}
+                            {addingGuestTo === invite.id ? (
+                              <div className="px-3 py-2.5 bg-cream border-t border-border flex items-center gap-2 flex-wrap">
+                                <input
+                                  type="text"
+                                  placeholder="Name"
+                                  value={guestFormData.name}
+                                  onChange={(e) => setGuestFormData((p) => ({ ...p, name: e.target.value }))}
+                                  autoFocus
+                                  className="flex-1 min-w-[100px] px-2 py-1.5 text-sm rounded border border-border bg-white focus:outline-none focus:ring-2 focus:ring-accent"
+                                />
+                                <input
+                                  type="text"
+                                  placeholder="Table"
+                                  value={guestFormData.table_number}
+                                  onChange={(e) => setGuestFormData((p) => ({ ...p, table_number: e.target.value }))}
+                                  className="w-20 px-2 py-1.5 text-sm rounded border border-border bg-white focus:outline-none focus:ring-2 focus:ring-accent"
+                                />
+                                <button
+                                  onClick={() => handleAddGuest(invite.id)}
+                                  disabled={guestFormSubmitting || !guestFormData.name.trim()}
+                                  className="px-3 py-1.5 text-xs rounded bg-primary text-primary-foreground disabled:opacity-50"
+                                >
+                                  Add
+                                </button>
+                                <button onClick={() => { setAddingGuestTo(null); setGuestFormData({ name: "", table_number: "" }) }} className="p-1 text-muted-foreground">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => { setAddingGuestTo(invite.id); setGuestFormData({ name: "", table_number: "" }) }}
+                                className="w-full px-3 py-2.5 text-xs text-accent hover:text-primary flex items-center gap-1.5 bg-cream border-t border-border transition-smooth"
+                              >
+                                <UserPlus className="w-3.5 h-3.5" />
+                                Add guest
+                              </button>
+                            )}
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2 pt-1">
                           {actionButtons(invite)}
                         </div>
@@ -1038,6 +1692,58 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
           )}
         </div>
       </main>
+
+      {/* Edit guest modal (shared for mobile) */}
+      {editingGuest && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:hidden">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setEditingGuest(null)} />
+          <div className="relative bg-white rounded-xl border border-border shadow-xl w-full max-w-sm p-5 space-y-4">
+            <h3 className="font-playfair text-lg text-primary">Edit Guest</h3>
+            <div>
+              <label className="block text-xs font-medium text-primary mb-1">Name</label>
+              <input type="text" value={editingGuest.name} onChange={(e) => setEditingGuest((p) => p ? { ...p, name: e.target.value } : null)} autoFocus className="w-full px-3 py-2 text-sm rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-accent" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-primary mb-1">Table Number</label>
+              <input type="text" value={editingGuest.table_number} onChange={(e) => setEditingGuest((p) => p ? { ...p, table_number: e.target.value } : null)} placeholder="e.g. 5" className="w-full px-3 py-2 text-sm rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-accent" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-primary mb-2">Attendance</label>
+              <div className="flex gap-2">
+                {([1, 0, null] as const).map((val) => (
+                  <button
+                    key={String(val)}
+                    onClick={() => setEditingGuest((p) => p ? { ...p, attending: val } : null)}
+                    className={`flex-1 py-1.5 text-xs rounded-lg border transition-smooth ${
+                      editingGuest.attending === val
+                        ? val === 1 ? "bg-green-100 text-green-700 border-green-300"
+                          : val === 0 ? "bg-red-100 text-red-700 border-red-300"
+                          : "bg-amber-100 text-amber-700 border-amber-300"
+                        : "border-border text-muted-foreground hover:border-primary"
+                    }`}
+                  >
+                    {val === 1 ? "Attending" : val === 0 ? "Not attending" : "Pending"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setEditingGuest(null)} className="flex-1 text-sm py-2 rounded-lg border border-border hover:bg-cream transition-smooth">Cancel</button>
+              <button
+                onClick={() => handleUpdateGuest(editingGuest.id, editingGuest.inviteId, {
+                  name: editingGuest.name,
+                  table_number: editingGuest.table_number.trim() || null,
+                  attending: editingGuest.attending,
+                })}
+                className="flex-1 text-sm py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-smooth"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

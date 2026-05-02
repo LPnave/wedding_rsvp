@@ -10,7 +10,23 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const result = await db.execute(`
+    // Per-guest records (primary source of truth)
+    const guestsResult = await db.execute(`
+      SELECT
+        g.name        AS name,
+        i.family_name AS family,
+        i.side        AS side,
+        i.code        AS invite_code,
+        g.table_number,
+        g.attending,
+        g.created_at
+      FROM guests g
+      JOIN invites i ON i.id = g.invite_id
+      ORDER BY i.family_name ASC, g.name ASC
+    `)
+
+    // Walk-in RSVPs (no invite code) + latest per invite with no guest records
+    const legacyResult = await db.execute(`
       SELECT name, attending, guest_count, invite_code, family_name, side, created_at
       FROM (
         SELECT
@@ -27,23 +43,40 @@ export async function GET(req: NextRequest) {
           END AS rn
         FROM rsvps r
         LEFT JOIN invites i ON i.code = r.invite_code
+        WHERE r.invite_code IS NULL
+           OR NOT EXISTS (SELECT 1 FROM guests g WHERE g.invite_id = i.id)
       )
       WHERE rn = 1
-      ORDER BY created_at ASC
+      ORDER BY family_name ASC, name ASC
     `)
 
-    const rows = result.rows.map((row) => {
+    const guestRows = guestsResult.rows.map((row) => {
+      const name = String(row.name).replace(/"/g, '""')
+      const family = String(row.family).replace(/"/g, '""')
+      const side = row.side ? String(row.side) : ""
+      const inviteCode = row.invite_code ? String(row.invite_code) : ""
+      const tableNum = row.table_number ? String(row.table_number) : ""
+      const att = row.attending === 1 ? "Yes" : row.attending === 0 ? "No" : "Pending"
+      const date = String(row.created_at).split("T")[0] ?? String(row.created_at)
+      return `"${name}","${family}",${side},${inviteCode},${tableNum},${att},${date}`
+    })
+
+    const legacyRows = legacyResult.rows.map((row) => {
       const name = String(row.name).replace(/"/g, '""')
       const family = String(row.family_name).replace(/"/g, '""')
       const side = row.side ? String(row.side) : ""
-      const attending = row.attending === 1 ? "Yes" : "No"
-      const guestCount = row.attending === 1 ? String(row.guest_count ?? 1) : "0"
       const inviteCode = row.invite_code ? String(row.invite_code) : ""
+      const att = row.attending === 1 ? "Yes" : "No"
+      const guestCount = row.attending === 1 ? String(row.guest_count ?? 1) : "0"
       const date = String(row.created_at).split("T")[0] ?? String(row.created_at)
-      return `"${name}","${family}",${side},${inviteCode},${attending},${guestCount},${date}`
+      return `"${name}","${family}",${side},${inviteCode},,${att},${date},${guestCount}`
     })
 
-    const csv = ["Name,Family,Side,InviteCode,Attending,GuestCount,Date", ...rows].join("\n")
+    const csv = [
+      "Name,Family,Side,InviteCode,Table,Attending,Date,GuestCount",
+      ...guestRows,
+      ...legacyRows,
+    ].join("\n")
 
     return new NextResponse(csv, {
       status: 200,

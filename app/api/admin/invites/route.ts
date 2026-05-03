@@ -43,10 +43,18 @@ export async function GET() {
       {} as Record<number, { id: number; invite_id: number; name: string; table_number: string | null; attending: number | null }[]>
     )
 
-    const rows = invitesResult.rows.map((row) => ({
-      ...row,
-      guests: guestsByInvite[Number(row.id)] ?? [],
-    }))
+    const rows = invitesResult.rows.map((row) => {
+      const guests = guestsByInvite[Number(row.id)] ?? []
+      // For invites with individual guest records, derive responded/confirmed_guests
+      // from the guests table rather than the legacy rsvps JOIN.
+      const responded = guests.length > 0
+        ? guests.filter((g) => g.attending !== null).length
+        : Number(row.responded)
+      const confirmed_guests = guests.length > 0
+        ? guests.filter((g) => g.attending === 1).length
+        : Number(row.confirmed_guests)
+      return { ...row, responded, confirmed_guests, guests }
+    })
 
     return NextResponse.json(rows)
   } catch (error) {

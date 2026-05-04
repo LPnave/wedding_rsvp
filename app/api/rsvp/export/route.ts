@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const key = searchParams.get("key")
+  const format = searchParams.get("format") ?? "default" // "default" | "tablewise"
 
   if (!process.env.RSVP_EXPORT_SECRET || key !== process.env.RSVP_EXPORT_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -50,27 +51,98 @@ export async function GET(req: NextRequest) {
       ORDER BY family_name ASC, name ASC
     `)
 
-    const guestRows = guestsResult.rows.map((row) => {
-      const name = String(row.name).replace(/"/g, '""')
-      const family = String(row.family).replace(/"/g, '""')
-      const side = row.side ? String(row.side) : ""
-      const inviteCode = row.invite_code ? String(row.invite_code) : ""
-      const tableNum = row.table_number ? String(row.table_number) : ""
-      const att = row.attending === 1 ? "Yes" : row.attending === 0 ? "No" : "Pending"
-      const date = String(row.created_at).split("T")[0] ?? String(row.created_at)
-      return `"${name}","${family}",${side},${inviteCode},${tableNum},${att},${date}`
-    })
+    type GuestRow = {
+      name: string; family: string; side: string; invite_code: string
+      table_number: string | null; attending: number | null; created_at: string
+    }
+    type LegacyRow = {
+      name: string; family_name: string; side: string; invite_code: string | null
+      attending: number | null; guest_count: number | null; created_at: string
+    }
 
-    const legacyRows = legacyResult.rows.map((row) => {
-      const name = String(row.name).replace(/"/g, '""')
-      const family = String(row.family_name).replace(/"/g, '""')
-      const side = row.side ? String(row.side) : ""
-      const inviteCode = row.invite_code ? String(row.invite_code) : ""
-      const att = row.attending === 1 ? "Yes" : "No"
-      const guestCount = row.attending === 1 ? String(row.guest_count ?? 1) : "0"
-      const date = String(row.created_at).split("T")[0] ?? String(row.created_at)
-      return `"${name}","${family}",${side},${inviteCode},,${att},${date},${guestCount}`
-    })
+    const guests = guestsResult.rows as unknown as GuestRow[]
+    const legacy = legacyResult.rows as unknown as LegacyRow[]
+
+    const escCsv = (s: string) => `"${s.replace(/"/g, '""')}"`
+    const attLabel = (v: number | null) => v === 1 ? "Yes" : v === 0 ? "No" : "Pending"
+    const dateStr = (s: string) => String(s).split("T")[0] ?? String(s)
+
+    if (format === "tablewise") {
+      const sortKey = (t: string | null) => {
+        if (!t) return Number.MAX_SAFE_INTEGER
+        const n = parseInt(t, 10)
+        return isNaN(n) ? Number.MAX_SAFE_INTEGER - 1 : n
+      }
+
+      // Group guests by table number
+      const grouped: Record<string, GuestRow[]> = {}
+      for (const g of guests) {
+        const key = g.table_number ?? "__unassigned__"
+        if (!grouped[key]) grouped[key] = []
+        grouped[key].push(g)
+      }
+
+      // Sort table keys
+      const tableKeys = Object.keys(grouped).sort((a, b) => {
+        return sortKey(a === "__unassigned__" ? null : a) - sortKey(b === "__unassigned__" ? null : b)
+      })
+
+      const lines: string[] = []
+      for (const key of tableKeys) {
+        const label = key === "__unassigned__" ? "Unassigned" : `Table ${key}`
+        lines.push(escCsv(label))  // table header row
+        for (const g of grouped[key].sort((a, b) => a.name.localeCompare(b.name))) {
+          lines.push(`,${escCsv(g.name)},${escCsv(g.family)},${g.side},${attLabel(g.attending)}`)
+        }
+        lines.push("") // blank row between tables
+      }
+
+      // Legacy/unassigned at the end under their own section
+      if (legacy.length > 0) {
+        lines.push(escCsv("Walk-ins / Legacy"))
+        for (const row of legacy) {
+          lines.push(`,${escCsv(row.name)},${escCsv(row.family_name)},${row.side},${attLabel(row.attending)}`)
+        }
+        lines.push("")
+      }
+
+      const csv = ["Table,Name,Family,Side,Attending", ...lines].join("\n")
+
+      return new NextResponse(csv, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="guests-tablewise-${new Date().toISOString().split("T")[0]}.csv"`,
+        },
+      })
+    }
+
+    // ── Default: flat guest list ──────────────────────────────────────────────
+    const guestRows = guests.map((row) =>
+      [
+        escCsv(row.name),
+        escCsv(row.family),
+        row.side,
+        row.invite_code,
+        row.table_number ?? "",
+        attLabel(row.attending),
+        dateStr(row.created_at),
+        "",
+      ].join(",")
+    )
+
+    const legacyRows = legacy.map((row) =>
+      [
+        escCsv(row.name),
+        escCsv(row.family_name),
+        row.side,
+        row.invite_code ?? "",
+        "",
+        attLabel(row.attending),
+        dateStr(row.created_at),
+        row.attending === 1 ? String(row.guest_count ?? 1) : "0",
+      ].join(",")
+    )
 
     const csv = [
       "Name,Family,Side,InviteCode,Table,Attending,Date,GuestCount",

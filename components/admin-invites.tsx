@@ -455,10 +455,31 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
       const qrImg = new Image()
       await new Promise<void>((resolve) => { qrImg.onload = () => resolve(); qrImg.src = qrDataUrl })
       ctx.drawImage(qrImg, (W - 280) / 2, 174, 280, 280)
-      ctx.fillStyle = "#2d5a4f"; ctx.font = "bold 22px Georgia, serif"; ctx.textAlign = "center"
-      ctx.fillText(familyName, W / 2, 498)
-      ctx.font = "13px Arial, sans-serif"; ctx.fillStyle = "#5a6f52"
-      ctx.fillText("You are invited to join us", W / 2, 526)
+      ctx.fillStyle = "#2d5a4f"; ctx.textAlign = "center"
+      // Auto-fit family name: shrink font until it fits, or wrap to two lines
+      const maxNameWidth = W - 100
+      let nameFontSize = 22
+      ctx.font = `bold ${nameFontSize}px Georgia, serif`
+      while (ctx.measureText(familyName).width > maxNameWidth && nameFontSize > 13) {
+        nameFontSize -= 1
+        ctx.font = `bold ${nameFontSize}px Georgia, serif`
+      }
+      if (ctx.measureText(familyName).width > maxNameWidth) {
+        // Still too long — split into two lines at the middle word boundary
+        const words = familyName.split(" ")
+        const mid = Math.ceil(words.length / 2)
+        const line1 = words.slice(0, mid).join(" ")
+        const line2 = words.slice(mid).join(" ")
+        const lineH = nameFontSize + 6
+        ctx.fillText(line1, W / 2, 490)
+        ctx.fillText(line2, W / 2, 490 + lineH)
+        ctx.font = "13px Arial, sans-serif"; ctx.fillStyle = "#5a6f52"
+        ctx.fillText("You are invited to join us", W / 2, 490 + lineH * 2 + 8)
+      } else {
+        ctx.fillText(familyName, W / 2, 498)
+        ctx.font = "13px Arial, sans-serif"; ctx.fillStyle = "#5a6f52"
+        ctx.fillText("You are invited to join us", W / 2, 526)
+      }
       ctx.font = "11px monospace"; ctx.fillStyle = "#d4af8e"; ctx.fillText(code, W / 2, 590)
       const link = document.createElement("a")
       link.download = `${familyName.replace(/\s+/g, "-")}-invite-qr.png`

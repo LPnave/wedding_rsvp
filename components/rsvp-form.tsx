@@ -184,6 +184,14 @@ export function RSVPForm() {
 
         {inviteLoading ? (
           <div className="text-center text-muted-foreground text-sm py-8">Loading your invitation...</div>
+        ) : !inviteCode ? (
+          <div className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-border text-center space-y-4">
+            <svg className="w-12 h-12 text-accent mx-auto" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25H4.5a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5H4.5a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+            </svg>
+            <h3 className="font-playfair text-2xl text-primary">Personal Link Required</h3>
+            <p className="text-primary/70">Please use the original link that was shared by the couple.</p>
+          </div>
         ) : inviteCode && inviteError ? (
           <div className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-border text-center space-y-4">
             <svg className="w-12 h-12 text-amber-400 mx-auto" fill="currentColor" viewBox="0 0 20 20">

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Heart, Flower2 } from "lucide-react"
+import Image from "next/image"
 
 export function FooterSection() {
   const [isInView, setIsInView] = useState(false)
@@ -72,28 +73,30 @@ export function FooterSection() {
               We look forward to celebrating with you
             </p>
 
-            {/* Monogram */}
-            <div className="py-8">
-              <div className="inline-block space-y-2 transition-smooth hover:scale-105">
-                <p className="font-playfair text-4xl md:text-5xl text-primary tracking-widest">
-                  <span className="text-primary">P</span>
-                  <span className="text-accent mx-4">&amp;</span>
-                  <span className="text-primary">L</span>
-                </p>
-              </div>
+            {/* Flowers */}
+            <div className="py-8 flex items-center justify-center gap-6">
+              {[0, 1, 2].map((i) => (
+                <Flower2
+                  key={i}
+                  className="w-8 h-8 text-accent/60 hover:text-accent transition-smooth hover:scale-110 hover-lift"
+                />
+              ))}
             </div>
           </div>
 
-          {/* Cultural Elements - Lotus Pattern */}
+          {/* Monogram */}
           <div
-            className={`pt-8 flex items-center justify-center gap-6 slide-up item-delay-3 ${isInView ? "" : "opacity-0"}`}
+            className={`pt-4 slide-up item-delay-3 ${isInView ? "" : "opacity-0"}`}
           >
-            {[0, 1, 2].map((i) => (
-              <Flower2
-                key={i}
-                className="w-8 h-8 text-accent/60 hover:text-accent transition-smooth hover:scale-110 hover-lift"
+            <div className="inline-block transition-smooth hover:scale-105">
+              <Image
+                src="/Logo only-01.png"
+                alt="P & L monogram"
+                width={120}
+                height={120}
+                className="mx-auto"
               />
-            ))}
+            </div>
           </div>
 
           {/* Bottom Text */}

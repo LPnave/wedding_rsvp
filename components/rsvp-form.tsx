@@ -199,7 +199,7 @@ export function RSVPForm() {
               {/* Family greeting */}
               {invite && (
                 <div className="text-center pb-2 border-b border-border">
-                  <p className="text-sm text-muted-foreground">You are invited as part of</p>
+                  <p className="text-sm text-muted-foreground">You are invited with</p>
                   <p className="font-playfair text-2xl text-primary mt-1">{invite.family_name}</p>
                 </div>
               )}
@@ -212,14 +212,14 @@ export function RSVPForm() {
                     {invite.guests.map((guest) => (
                       <div
                         key={guest.id}
-                        className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-cream/30"
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg border border-border bg-cream/30"
                       >
-                        <span className="text-sm text-primary font-medium truncate">{guest.name}</span>
+                        <span className="text-sm text-primary font-medium">{guest.name}</span>
                         <div className="flex gap-2 shrink-0">
                           <button
                             type="button"
                             onClick={() => setGuestResponses((prev) => ({ ...prev, [guest.id]: "yes" }))}
-                            className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-smooth border-2 ${
+                            className={`flex-1 sm:flex-none px-3 py-1.5 text-xs rounded-lg font-medium transition-smooth border-2 ${
                               guestResponses[guest.id] === "yes"
                                 ? "bg-primary text-primary-foreground border-primary"
                                 : "bg-white text-primary border-border hover:border-primary hover:bg-primary/5"
@@ -230,7 +230,7 @@ export function RSVPForm() {
                           <button
                             type="button"
                             onClick={() => setGuestResponses((prev) => ({ ...prev, [guest.id]: "no" }))}
-                            className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-smooth border-2 ${
+                            className={`flex-1 sm:flex-none px-3 py-1.5 text-xs rounded-lg font-medium transition-smooth border-2 ${
                               guestResponses[guest.id] === "no"
                                 ? "bg-primary text-primary-foreground border-primary"
                                 : "bg-white text-primary border-border hover:border-primary hover:bg-primary/5"

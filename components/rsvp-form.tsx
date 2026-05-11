@@ -151,7 +151,7 @@ export function RSVPForm() {
   }
 
   return (
-    <section className="py-16 md:py-24 px-4 bg-cream">
+    <section id="rsvp-section" className="py-16 md:py-24 px-4 bg-cream">
       <div className="max-w-2xl mx-auto">
         <style>{`
           @keyframes slideUp {

@@ -11,7 +11,7 @@ export function OpeningGreeting() {
   }, [])
 
   return (
-    <div className="relative flex items-center justify-center min-h-screen px-4 overflow-hidden">
+    <div id="hero-section" className="relative flex items-center justify-center min-h-screen px-4 overflow-hidden">
       {/* Background photo */}
       <Image
         src="/photo.jpg"
@@ -21,8 +21,10 @@ export function OpeningGreeting() {
         className="object-cover"
         style={{ objectPosition: "center 20%" }}
       />
-      {/* Soft overlay so text remains legible */}
-      <div className="absolute inset-0 bg-white/50" />
+      {/* Overlay — slightly stronger for legibility */}
+      <div className="absolute inset-0 bg-white/60" />
+      {/* Soft dark radial vignette behind the text centre */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_50%,rgba(0,0,0,0.08)_0%,transparent_100%)]" />
       {/* Bottom fade into page background */}
       <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[#f5f0e8] to-transparent pointer-events-none z-10" />
       <style>{`
@@ -55,12 +57,14 @@ export function OpeningGreeting() {
         .stagger-1 { animation-delay: 0.1s; }
         .stagger-2 { animation-delay: 0.2s; }
         .stagger-3 { animation-delay: 0.3s; }
+        .text-shadow-soft { text-shadow: 0 1px 4px rgba(255,255,255,0.3); }
+        .text-shadow-heading { text-shadow: 0 1px 6px rgba(255,255,255,0.35); }
       `}</style>
 
       <div className={`relative z-10 max-w-2xl text-center space-y-4 ${isVisible ? "fade-in-scale" : ""}`}>
         <div className="space-y-3">
           <p
-            className={`text-lg md:text-xl text-primary/80 tracking-wide elegant-text slide-up-text stagger-1 ${isVisible ? "" : "opacity-0"}`}
+            className={`text-lg md:text-xl text-primary tracking-wide elegant-text slide-up-text stagger-1 text-shadow-soft ${isVisible ? "" : "opacity-0"}`}
           >
             With the blessings of our families, we invite you to celebrate our union
           </p>
@@ -76,13 +80,13 @@ export function OpeningGreeting() {
           </div>
 
           <h1
-            className={`font-playfair text-5xl md:text-7xl text-primary elegant-text slide-up-text stagger-3 ${isVisible ? "" : "opacity-0"}`}
+            className={`font-playfair text-5xl md:text-7xl text-primary elegant-text slide-up-text stagger-3 text-shadow-heading ${isVisible ? "" : "opacity-0"}`}
           >
             Pabasara & Lahiru
           </h1>
 
           <p
-            className={`text-2xl md:text-3xl text-secondary font-light tracking-wide slide-up-text ${isVisible ? "" : "opacity-0"}`}
+            className={`text-2xl md:text-3xl text-primary/80 font-light tracking-wide slide-up-text text-shadow-soft ${isVisible ? "" : "opacity-0"}`}
             style={{ animationDelay: "0.4s" }}
           >
             Friday, 31st July 2026

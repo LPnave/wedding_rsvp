@@ -1,11 +1,25 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Heart, Flower2 } from "lucide-react"
+import { Heart } from "lucide-react"
 import Image from "next/image"
+import { useSearchParams } from "next/navigation"
+
+const WEDDING_DATE = new Date("2026-07-31T08:50:00+05:30")
 
 export function FooterSection() {
+  const searchParams = useSearchParams()
   const [isInView, setIsInView] = useState(false)
+  const [isPast, setIsPast] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsPast(Date.now() >= WEDDING_DATE.getTime())
+    check()
+    const timer = setInterval(check, 10000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const showPast = isPast || searchParams.get("countdown") === "done"
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -67,22 +81,14 @@ export function FooterSection() {
             </div>
           </div>
 
-          {/* Closing Message */}
-          <div className={`space-y-4 slide-up item-delay-2 ${isInView ? "" : "opacity-0"}`}>
-            <p className="font-playfair text-xl md:text-2xl text-primary italic elegant-text">
-              We look forward to celebrating with you
-            </p>
-
-            {/* Flowers */}
-            <div className="py-8 flex items-center justify-center gap-6">
-              {[0, 1, 2].map((i) => (
-                <Flower2
-                  key={i}
-                  className="w-8 h-8 text-accent/60 hover:text-accent transition-smooth hover:scale-110 hover-lift"
-                />
-              ))}
+          {/* Closing Message — hidden after the wedding */}
+          {!showPast && (
+            <div className={`space-y-4 slide-up item-delay-2 ${isInView ? "" : "opacity-0"}`}>
+              <p className="font-playfair text-xl md:text-2xl text-primary italic elegant-text">
+                We look forward to celebrating with you
+              </p>
             </div>
-          </div>
+          )}
 
           {/* Monogram */}
           <div

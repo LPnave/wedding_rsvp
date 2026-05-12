@@ -32,7 +32,7 @@ export function BottomNav() {
           if (entry.isIntersecting) setActive(entry.target.id)
         })
       },
-      { rootMargin: "-40% 0px -40% 0px", threshold: 0 },
+      { rootMargin: "-20% 0px -20% 0px", threshold: 0 },
     )
     SECTIONS.forEach(({ id }) => {
       const el = document.getElementById(id)

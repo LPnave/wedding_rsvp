@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Flower2 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 
 const WEDDING_DATE = new Date("2026-07-31T08:50:00+05:30")
@@ -109,7 +108,6 @@ export function CountdownSection() {
         {/* Phase: wedding day, before ceremony */}
         {activePhase === "today" && (
           <div className={`space-y-4 ${isInView ? "cnt-fadeup" : "opacity-0"}`}>
-            <Flower2 className="w-10 h-10 text-accent mx-auto" strokeWidth={1.5} />
             <p className="font-playfair text-2xl text-primary">Today is the day!</p>
             <p className="text-sm text-muted-foreground">The ceremony begins at 8:50 AM</p>
             {/* Keep ticking hours/minutes/seconds */}
@@ -118,14 +116,14 @@ export function CountdownSection() {
                 <div key={label} className="flex items-start gap-3 md:gap-6">
                   <div className="flex flex-col items-center">
                     <div className="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-cream border border-border flex items-center justify-center shadow-sm">
-                      <span key={value} className="font-playfair text-2xl md:text-3xl text-primary tick">
+                      <span key={value} className="font-playfair text-2xl md:text-3xl text-primary tick leading-none">
                         {value !== undefined ? String(value).padStart(2, "0") : "--"}
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground mt-2 tracking-wide uppercase">{label}</span>
                   </div>
                   {i < arr.length - 1 && (
-                    <span className="font-playfair text-2xl md:text-3xl text-accent/60 mt-4 md:mt-5 select-none">:</span>
+                    <span className="font-playfair text-2xl md:text-3xl text-accent/60 mt-4 md:mt-5 select-none leading-none">:</span>
                   )}
                 </div>
               ))}
@@ -142,14 +140,14 @@ export function CountdownSection() {
               <div key={label} className="flex items-start gap-1.5 sm:gap-4 md:gap-6">
                 <div className="flex flex-col items-center">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl bg-cream border border-border flex items-center justify-center shadow-sm">
-                    <span key={value} className="font-playfair text-xl sm:text-2xl md:text-3xl text-primary tick">
+                    <span key={value} className="font-playfair text-xl sm:text-2xl md:text-3xl text-primary tick leading-none">
                       {value !== undefined ? String(value).padStart(2, "0") : "--"}
                     </span>
                   </div>
                   <span className="text-[10px] sm:text-xs text-muted-foreground mt-2 tracking-wide uppercase">{label}</span>
                 </div>
                 {i < units.length - 1 && (
-                  <span className="font-playfair text-xl sm:text-2xl md:text-3xl text-accent/60 mt-3 sm:mt-4 md:mt-5 select-none">:</span>
+                  <span className="font-playfair text-xl sm:text-2xl md:text-3xl text-accent/60 mt-3 sm:mt-4 md:mt-5 select-none leading-none">:</span>
                 )}
               </div>
             ))}

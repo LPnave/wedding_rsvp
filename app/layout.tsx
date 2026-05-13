@@ -17,6 +17,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Pabasara & Lahiru - Wedding Invitation",
   description: "Join us for our wedding celebration",
+  robots: {
+    index: false,
+    follow: false,
+  },
 }
 
 export default function RootLayout({

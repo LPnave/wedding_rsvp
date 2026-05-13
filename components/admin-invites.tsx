@@ -78,6 +78,11 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   const [pendingDeleteInvite, setPendingDeleteInvite] = useState<Invite | null>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showRemindModal, setShowRemindModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importLoading, setImportLoading] = useState(false)
+  const [importResult, setImportResult] = useState<{ invites_created: number; guests_created: number; skipped: number; parse_errors: string[] } | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
   const [deadlineDismissed, setDeadlineDismissed] = useState(false)
   const [editingTableHeader, setEditingTableHeader] = useState<string | null>(null)
   const [tableHeaderInput, setTableHeaderInput] = useState("")
@@ -485,6 +490,32 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
       link.download = `${familyName.replace(/\s+/g, "-")}-invite-qr.png`
       link.href = canvas.toDataURL("image/png"); link.click()
     } finally { setDownloadingQR(null) }
+  }
+
+  const handleImport = async () => {
+    if (!importFile) return
+    setImportLoading(true)
+    setImportResult(null)
+    setImportError(null)
+    try {
+      const text = await importFile.text()
+      const res = await fetch("/api/admin/import", {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: text,
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setImportError(data.error ?? "Import failed")
+      } else {
+        setImportResult(data)
+        if (data.invites_created > 0) await fetchInvites()
+      }
+    } catch {
+      setImportError("Something went wrong. Please try again.")
+    } finally {
+      setImportLoading(false)
+    }
   }
 
   const handleLogout = async () => {
@@ -1076,6 +1107,111 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
         document.body
       )}
 
+      {/* Import Modal */}
+      {showImportModal && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/30" onClick={() => { if (!importLoading) setShowImportModal(false) }} />
+          <div className="relative bg-white rounded-xl border border-border shadow-xl w-full max-w-md flex flex-col">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="font-playfair text-xl text-primary">Bulk Import</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Upload a CSV to create invites &amp; guests in bulk</p>
+              </div>
+              <button onClick={() => setShowImportModal(false)} disabled={importLoading} className="p-1 rounded-lg hover:bg-cream transition-smooth text-muted-foreground disabled:opacity-40">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {/* Template download */}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Need a template?</span>
+                <a
+                  href="/api/admin/import"
+                  download="import-template.csv"
+                  className="flex items-center gap-1.5 text-primary hover:underline"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M7.5 11.25L12 15.75m0 0l4.5-4.5M12 15.75V3" />
+                  </svg>
+                  Download template
+                </a>
+              </div>
+
+              {/* Column info */}
+              <div className="text-xs text-muted-foreground bg-cream rounded-lg p-3 space-y-1">
+                <p className="font-medium text-primary mb-1">Required columns</p>
+                <p><code className="font-mono">family_name</code> — invitation family name</p>
+                <p><code className="font-mono">side</code> — <code className="font-mono">groom</code> or <code className="font-mono">bride</code></p>
+                <p><code className="font-mono">guest_name</code> — individual guest name (optional)</p>
+                <p className="pt-1 text-muted-foreground/70">Rows with the same family_name + side are merged into one invite.</p>
+              </div>
+
+              {/* File picker */}
+              <label className="flex flex-col items-center gap-2 border-2 border-dashed border-border rounded-xl p-6 cursor-pointer hover:border-primary/40 transition-smooth">
+                <svg className="w-8 h-8 text-muted-foreground/50" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                </svg>
+                {importFile
+                  ? <span className="text-sm text-primary font-medium">{importFile.name}</span>
+                  : <span className="text-sm text-muted-foreground">Click to choose a CSV file</span>
+                }
+                <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(e) => { setImportFile(e.target.files?.[0] ?? null); setImportResult(null); setImportError(null) }} />
+              </label>
+
+              {/* Error */}
+              {importError && (
+                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{importError}</div>
+              )}
+
+              {/* Result summary */}
+              {importResult && (
+                <div className="text-sm bg-green-50 border border-green-200 rounded-lg px-4 py-3 space-y-1">
+                  <p className="font-medium text-green-700">Import complete</p>
+                  <p className="text-green-600">{importResult.invites_created} invite{importResult.invites_created !== 1 ? "s" : ""} created</p>
+                  <p className="text-green-600">{importResult.guests_created} guest record{importResult.guests_created !== 1 ? "s" : ""} added</p>
+                  {importResult.skipped > 0 && <p className="text-amber-600">{importResult.skipped} famille{importResult.skipped !== 1 ? "s" : ""} skipped (already exist)</p>}
+                  {importResult.parse_errors.length > 0 && (
+                    <details className="pt-1">
+                      <summary className="cursor-pointer text-amber-600 text-xs">{importResult.parse_errors.length} row warning{importResult.parse_errors.length !== 1 ? "s" : ""}</summary>
+                      <ul className="mt-1 space-y-0.5 text-xs text-amber-700">
+                        {importResult.parse_errors.map((e, i) => <li key={i}>{e}</li>)}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="px-6 pb-5 flex gap-2">
+              <button
+                onClick={() => setShowImportModal(false)}
+                disabled={importLoading}
+                className="flex-1 py-2.5 rounded-lg border border-border text-sm text-primary hover:bg-cream transition-smooth disabled:opacity-40"
+              >
+                {importResult ? "Close" : "Cancel"}
+              </button>
+              {!importResult && (
+                <button
+                  onClick={handleImport}
+                  disabled={!importFile || importLoading}
+                  className="flex-1 py-2.5 rounded-lg bg-primary text-white text-sm hover:bg-primary/90 transition-smooth disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  {importLoading ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      Importing…
+                    </>
+                  ) : "Import"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-border px-4 md:px-6 py-4 flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -1084,6 +1220,15 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <AdminStatsModal />
+          <button
+            onClick={() => { setShowImportModal(true); setImportFile(null); setImportResult(null); setImportError(null) }}
+            className="text-xs md:text-sm px-3 md:px-4 py-2 rounded-lg border border-border text-primary hover:bg-cream transition-smooth whitespace-nowrap flex items-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+            </svg>
+            <span className="hidden sm:inline">Import</span>
+          </button>
           <div className="relative group">
             <button className="text-xs md:text-sm px-3 md:px-4 py-2 rounded-lg border border-border text-primary hover:bg-cream transition-smooth whitespace-nowrap flex items-center gap-1.5">
               <span className="hidden sm:inline">Download </span>CSV

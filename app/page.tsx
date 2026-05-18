@@ -1,4 +1,3 @@
-import { Suspense } from "react"
 import { HeroSection } from "@/components/hero-section"
 import { CeremonyDetails } from "@/components/ceremony-details"
 import { VenueSection } from "@/components/venue-section"
@@ -23,19 +22,13 @@ export default function Home() {
       <VenueSection />
 
       {/* Countdown Section */}
-      <Suspense fallback={<div className="py-20" />}>
-        <CountdownSection />
-      </Suspense>
+      <CountdownSection />
 
       {/* RSVP Section */}
-      <Suspense fallback={<div className="py-24 text-center text-muted-foreground text-sm">Loading...</div>}>
-        <RSVPForm />
-      </Suspense>
+      <RSVPForm />
 
       {/* Footer Section */}
-      <Suspense fallback={<div className="py-16" />}>
-        <FooterSection />
-      </Suspense>
+      <FooterSection />
 
       {/* Bottom navigation — hidden during hero section */}
       <BottomNav />

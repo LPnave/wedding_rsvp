@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 
 const WEDDING_DATE = new Date("2026-07-31T08:50:00+05:30")
@@ -34,42 +34,6 @@ function getPhase(): Phase {
 }
 
 export function CountdownSection() {
-  const searchParams = useSearchParams()
-  const previewPhase = searchParams.get("countdown") as Phase | null
-
-  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null)
-  const [phase, setPhase] = useState<Phase | null>(null)
-  const [isInView, setIsInView] = useState(false)
-
-  const activePhase = previewPhase ?? phase
-
-  useEffect(() => {
-    setTimeLeft(getTimeLeft())
-    setPhase(getPhase())
-    const timer = setInterval(() => {
-      setTimeLeft(getTimeLeft())
-      setPhase(getPhase())
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [])
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setIsInView(true) },
-      { threshold: 0.1 },
-    )
-    const el = document.getElementById("countdown-section")
-    if (el) observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
-
-  const units = [
-    { label: "Days",    value: timeLeft?.days },
-    { label: "Hours",   value: timeLeft?.hours },
-    { label: "Minutes", value: timeLeft?.minutes },
-    { label: "Seconds", value: timeLeft?.seconds },
-  ]
-
   return (
     <section id="countdown-section" className="py-16 md:py-20 px-4 bg-white">
       <div className="max-w-2xl mx-auto text-center">
@@ -88,7 +52,7 @@ export function CountdownSection() {
           .tick { animation: tickFlip 0.35s ease-out; }
         `}</style>
 
-        <div className={`space-y-2 mb-10 ${isInView ? "cnt-fadeup" : "opacity-0"}`}>
+        <div className="space-y-2 mb-10">
           <p className="text-sm text-muted-foreground tracking-widest uppercase">Counting down to</p>
           <h2 className="font-playfair text-3xl md:text-4xl text-primary">31st July 2026</h2>
           <div className="flex items-center justify-center gap-2 pt-1">
@@ -98,62 +62,91 @@ export function CountdownSection() {
           </div>
         </div>
 
-        {/* Phase: after ceremony */}
-        {activePhase === "done" && (
-          <div className={`space-y-3 ${isInView ? "cnt-fadeup" : "opacity-0"}`}>
-            <p className="font-playfair text-2xl text-primary">Thank you for celebrating with us</p>
-          </div>
-        )}
-
-        {/* Phase: wedding day, before ceremony */}
-        {activePhase === "today" && (
-          <div className={`space-y-4 ${isInView ? "cnt-fadeup" : "opacity-0"}`}>
-            <p className="font-playfair text-2xl text-primary">Today is the day!</p>
-            <p className="text-sm text-muted-foreground">The ceremony begins at 8:50 AM</p>
-            {/* Keep ticking hours/minutes/seconds */}
-            <div className="flex items-start justify-center gap-3 md:gap-6 pt-2">
-              {units.filter((u) => u.label !== "Days").map(({ label, value }, i, arr) => (
-                <div key={label} className="flex items-start gap-3 md:gap-6">
-                  <div className="flex flex-col items-center">
-                    <div className="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-cream border border-border flex items-center justify-center shadow-sm">
-                      <span key={value} className="font-playfair text-2xl md:text-3xl text-primary tick leading-none">
-                        {value !== undefined ? String(value).padStart(2, "0") : "--"}
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground mt-2 tracking-wide uppercase">{label}</span>
-                  </div>
-                  {i < arr.length - 1 && (
-                    <span className="font-playfair text-2xl md:text-3xl text-accent/60 mt-4 md:mt-5 select-none leading-none">:</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Phase: before wedding day */}
-        {activePhase === "before" && (
-          <div className={`flex items-start justify-center gap-1.5 sm:gap-4 md:gap-6 ${isInView ? "cnt-fadeup" : "opacity-0"}`}
-            style={{ animationDelay: "0.15s" }}
-          >
-            {units.map(({ label, value }, i) => (
-              <div key={label} className="flex items-start gap-1.5 sm:gap-4 md:gap-6">
-                <div className="flex flex-col items-center">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl bg-cream border border-border flex items-center justify-center shadow-sm">
-                    <span key={value} className="font-playfair text-xl sm:text-2xl md:text-3xl text-primary tick leading-none">
-                      {value !== undefined ? String(value).padStart(2, "0") : "--"}
-                    </span>
-                  </div>
-                  <span className="text-[10px] sm:text-xs text-muted-foreground mt-2 tracking-wide uppercase">{label}</span>
-                </div>
-                {i < units.length - 1 && (
-                  <span className="font-playfair text-xl sm:text-2xl md:text-3xl text-accent/60 mt-3 sm:mt-4 md:mt-5 select-none leading-none">:</span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        <Suspense fallback={<div className="py-8" />}>
+          <CountdownInner />
+        </Suspense>
       </div>
     </section>
+  )
+}
+
+function CountdownInner() {
+  const searchParams = useSearchParams()
+  const previewPhase = searchParams.get("countdown") as Phase | null
+
+  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null)
+  const [phase, setPhase] = useState<Phase | null>(null)
+
+  const activePhase = previewPhase ?? phase
+
+  useEffect(() => {
+    setTimeLeft(getTimeLeft())
+    setPhase(getPhase())
+    const timer = setInterval(() => {
+      setTimeLeft(getTimeLeft())
+      setPhase(getPhase())
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const units = [
+    { label: "Days",    value: timeLeft?.days },
+    { label: "Hours",   value: timeLeft?.hours },
+    { label: "Minutes", value: timeLeft?.minutes },
+    { label: "Seconds", value: timeLeft?.seconds },
+  ]
+
+  if (activePhase === "done") {
+    return (
+      <div className="space-y-3 cnt-fadeup">
+        <p className="font-playfair text-2xl text-primary">Thank you for celebrating with us</p>
+      </div>
+    )
+  }
+
+  if (activePhase === "today") {
+    return (
+      <div className="space-y-4 cnt-fadeup">
+        <p className="font-playfair text-2xl text-primary">Today is the day!</p>
+        <p className="text-sm text-muted-foreground">The ceremony begins at 8:50 AM</p>
+        <div className="flex items-start justify-center gap-3 md:gap-6 pt-2">
+          {units.filter((u) => u.label !== "Days").map(({ label, value }, i, arr) => (
+            <div key={label} className="flex items-start gap-3 md:gap-6">
+              <div className="flex flex-col items-center">
+                <div className="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-cream border border-border flex items-center justify-center shadow-sm">
+                  <span key={value} className="font-playfair text-2xl md:text-3xl text-primary tick leading-none">
+                    {value !== undefined ? String(value).padStart(2, "0") : "--"}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground mt-2 tracking-wide uppercase">{label}</span>
+              </div>
+              {i < arr.length - 1 && (
+                <span className="font-playfair text-2xl md:text-3xl text-accent/60 mt-4 md:mt-5 select-none leading-none">:</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-start justify-center gap-1.5 sm:gap-4 md:gap-6 cnt-fadeup" style={{ animationDelay: "0.15s" }}>
+      {units.map(({ label, value }, i) => (
+        <div key={label} className="flex items-start gap-1.5 sm:gap-4 md:gap-6">
+          <div className="flex flex-col items-center">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl bg-cream border border-border flex items-center justify-center shadow-sm">
+              <span key={value} className="font-playfair text-xl sm:text-2xl md:text-3xl text-primary tick leading-none">
+                {value !== undefined ? String(value).padStart(2, "0") : "--"}
+              </span>
+            </div>
+            <span className="text-[10px] sm:text-xs text-muted-foreground mt-2 tracking-wide uppercase">{label}</span>
+          </div>
+          {i < units.length - 1 && (
+            <span className="font-playfair text-xl sm:text-2xl md:text-3xl text-accent/60 mt-3 sm:mt-4 md:mt-5 select-none leading-none">:</span>
+          )}
+        </div>
+      ))}
+    </div>
   )
 }

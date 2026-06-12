@@ -1,8 +1,14 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Playfair_Display, Inter } from "next/font/google"
+import { Playfair_Display, Inter, Kapakana } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
+
+const kapakana = Kapakana({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-kapakana",
+})
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -30,7 +36,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${playfair.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} ${playfair.variable} ${kapakana.variable} font-sans antialiased`}>
         {children}
         <Analytics />
       </body>

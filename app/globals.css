@@ -84,6 +84,7 @@
 @theme inline {
   --font-sans: "Inter", "Inter Fallback";
   --font-playfair: "Playfair Display", "Playfair Display Fallback";
+  --font-kapakana: "Kapakana", serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

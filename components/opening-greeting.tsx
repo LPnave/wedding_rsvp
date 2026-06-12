@@ -80,7 +80,7 @@ export function OpeningGreeting() {
           </div>
 
           <h1
-            className={`font-playfair text-5xl md:text-7xl text-primary elegant-text slide-up-text stagger-3 text-shadow-heading ${isVisible ? "" : "opacity-0"}`}
+            className={`font-kapakana text-6xl md:text-8xl text-primary elegant-text slide-up-text stagger-3 text-shadow-heading ${isVisible ? "" : "opacity-0"}`}
           >
             Pabasara & Lahiru
           </h1>

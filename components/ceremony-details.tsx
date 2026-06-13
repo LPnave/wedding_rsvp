@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ClipboardList, Gem, Wine, UtensilsCrossed, Music2, Sparkles } from "lucide-react"
+import { Gem, Wine, UtensilsCrossed, Music2, Sparkles } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 interface TimelineItem {
@@ -24,7 +24,6 @@ export function CeremonyDetails() {
   }, [])
 
   const timeline: TimelineItem[] = [
-    { time: "8:50 AM",  event: "Registration",    Icon: ClipboardList },
     { time: "10:00 AM", event: "Poruwa Ceremony",  Icon: Gem },
     { time: "12:00 PM", event: "Bar Opens",        Icon: Wine },
     { time: "1:00 PM",  event: "Lunch",            Icon: UtensilsCrossed },

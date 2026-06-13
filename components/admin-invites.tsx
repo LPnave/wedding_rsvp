@@ -115,11 +115,14 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   useEffect(() => () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current) }, [])
 
   // ── Derived attendance status ────────────────────────────────────────────
-  const getInviteStatus = (invite: Invite): "pending" | "attending" | "rejected" => {
+  const getInviteStatus = (invite: Invite): "pending" | "attending" | "partial" | "rejected" => {
     if (invite.guests.length > 0) {
       const hasResponded = invite.guests.some((g) => g.attending !== null)
       if (!hasResponded) return "pending"
-      return invite.guests.some((g) => g.attending === 1) ? "attending" : "rejected"
+      const hasYes = invite.guests.some((g) => g.attending === 1)
+      const hasNo  = invite.guests.some((g) => g.attending === 0)
+      if (hasYes && hasNo) return "partial"
+      return hasYes ? "attending" : "rejected"
     }
     if (Number(invite.responded) === 0) return "pending"
     return Number(invite.confirmed_guests) > 0 ? "attending" : "rejected"
@@ -563,8 +566,9 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     if (filters.side !== "all" && i.side !== filters.side) return false
     const status = getInviteStatus(i)
     if (filters.responded === "attending" && status !== "attending") return false
-    if (filters.responded === "rejected" && status !== "rejected") return false
-    if (filters.responded === "pending" && status !== "pending") return false
+    if (filters.responded === "partial"   && status !== "partial")   return false
+    if (filters.responded === "rejected"  && status !== "rejected")  return false
+    if (filters.responded === "pending"   && status !== "pending")   return false
     return true
   })
   const hasActiveFilters = filters.name || filters.code || filters.side !== "all" || filters.responded !== "all"
@@ -666,6 +670,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
       </span>
     )
     if (status === "attending") return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Attending</span>
+    if (status === "partial")   return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Partial</span>
     return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Rejected</span>
   }
 
@@ -1712,6 +1717,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                   <select value={filters.responded} onChange={(e) => setFilters((p) => ({ ...p, responded: e.target.value }))} className="px-3 py-1.5 text-sm rounded-lg border border-border bg-input focus:outline-none focus:ring-2 focus:ring-accent">
                     <option value="all">All</option>
                     <option value="attending">Attending</option>
+                    <option value="partial">Partial</option>
                     <option value="rejected">Rejected</option>
                     <option value="pending">Pending</option>
                   </select>

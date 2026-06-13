@@ -221,7 +221,6 @@ function RSVPFormInner() {
         <div className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-border space-y-6 hover-lift transition-smooth-slow">
           {invite && (
             <div className="text-center pb-2 border-b border-border">
-              <p className="text-sm text-muted-foreground">You are invited with</p>
               <p className="font-playfair text-2xl text-primary mt-1">{invite.family_name}</p>
             </div>
           )}

@@ -56,6 +56,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
+  const [copiedWa, setCopiedWa] = useState<string | null>(null)
   const [downloadingQR, setDownloadingQR] = useState<string | null>(null)
   const [editingTable, setEditingTable] = useState<number | null>(null)
   const [tableInput, setTableInput] = useState("")
@@ -436,6 +437,16 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     setTimeout(() => setCopiedCode(null), 2000)
   }
 
+  const handleCopyWaMessage = (invite: Invite) => {
+    const inviteLink = `${window.location.origin}/?invite=${invite.code}`
+    const msg = waTemplate
+      .replace(/\{invite_link\}/g, inviteLink)
+      .replace(/\{family_name\}/g, invite.family_name)
+    navigator.clipboard.writeText(msg)
+    setCopiedWa(invite.code)
+    setTimeout(() => setCopiedWa(null), 2000)
+  }
+
   const handleDownloadQR = async (code: string, familyName: string) => {
     setDownloadingQR(code)
     try {
@@ -717,6 +728,13 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
       >
         <MessageCircle className="w-4 h-4" />
       </a>
+      <button
+        onClick={() => handleCopyWaMessage(invite)}
+        title="Copy WhatsApp message"
+        className="p-2 rounded-lg border border-green-200 text-green-600 hover:bg-green-50 transition-smooth"
+      >
+        {copiedWa === invite.code ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+      </button>
       <div>
         <button
           onClick={(e) => {

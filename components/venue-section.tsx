@@ -38,7 +38,7 @@ export function VenueSection() {
       "DTEND:20260731T103000Z",
       "SUMMARY:Wedding of Pabasara & Lahiru",
       "DESCRIPTION:You are cordially invited to celebrate the wedding of Pabasara & Lahiru.",
-      "LOCATION:Regent Ballroom\\, Earls Regency Hotel\\, Kandy\\, Sri Lanka",
+      "LOCATION:Regent Ballroom\\, Earl's Regency Hotel\\, Kandy\\, Sri Lanka",
       "BEGIN:VALARM",
       "TRIGGER:-P14D",
       "ACTION:DISPLAY",
@@ -132,7 +132,7 @@ export function VenueSection() {
             <div className="p-8 md:p-10 space-y-6">
               <div className={`slide-up-smooth item-delay-2 ${isInView ? "" : "opacity-0"}`}>
                 <h3 className="font-playfair text-2xl md:text-3xl text-primary">
-                  Regent Ballroom at Earls Regency Hotel
+                  Regent Ballroom at Earl's Regency Hotel
                 </h3>
                 <p className="text-lg text-primary/70 mb-4">Kandy, Sri Lanka</p>
               </div>
@@ -147,7 +147,7 @@ export function VenueSection() {
                   <MapPin className="w-6 h-6 text-accent flex-shrink-0 mt-1" />
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Location</p>
-                    <p className="text-primary font-medium">Regent Ballroom, Earls Regency Hotel, Kandy</p>
+                    <p className="text-primary font-medium">Regent Ballroom, Earl's Regency Hotel, Kandy</p>
                   </div>
                 </div>
 
@@ -159,7 +159,7 @@ export function VenueSection() {
                 >
                   <CalendarDays className="w-6 h-6 text-accent flex-shrink-0 mt-1" />
                   <div>
-                    <p className="text-sm text-muted-foreground mb-1">Date & Time</p>
+                    <p className="text-sm text-muted-foreground mb-1">Date</p>
                     <p className="text-primary font-medium">Friday, 31st July 2026</p>
                   </div>
                 </div>

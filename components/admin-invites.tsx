@@ -554,8 +554,14 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   const totalExpected = invites.reduce((sum, i) => sum + getTotalCount(i), 0)
   const totalConfirmed = invites.reduce((sum, i) => sum + getConfirmedCount(i), 0)
   const totalResponded = invites.filter((i) => getInviteStatus(i) !== "pending").length
-  const totalRejected = invites.filter((i) => getInviteStatus(i) === "rejected").length
-  const totalPending = invites.filter((i) => getInviteStatus(i) === "pending").length
+  const totalRejected = invites.reduce((sum, i) => {
+    if (i.guests.length > 0) return sum + i.guests.filter((g) => g.attending === 0).length
+    return getInviteStatus(i) === "rejected" ? sum + Number(i.max_guests) : sum
+  }, 0)
+  const totalPending = invites.reduce((sum, i) => {
+    if (i.guests.length > 0) return sum + i.guests.filter((g) => g.attending === null).length
+    return getInviteStatus(i) === "pending" ? sum + Number(i.max_guests) : sum
+  }, 0)
 
   const now = new Date()
   const isOverdue = (invite: Invite) => now > RSVP_DEADLINE && getInviteStatus(invite) === "pending"

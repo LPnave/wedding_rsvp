@@ -554,6 +554,8 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   const totalExpected = invites.reduce((sum, i) => sum + getTotalCount(i), 0)
   const totalConfirmed = invites.reduce((sum, i) => sum + getConfirmedCount(i), 0)
   const totalResponded = invites.filter((i) => getInviteStatus(i) !== "pending").length
+  const totalRejected = invites.filter((i) => getInviteStatus(i) === "rejected").length
+  const totalPending = invites.filter((i) => getInviteStatus(i) === "pending").length
 
   const now = new Date()
   const isOverdue = (invite: Invite) => now > RSVP_DEADLINE && getInviteStatus(invite) === "pending"
@@ -1292,12 +1294,14 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-5 md:space-y-6">
         {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
           {[
             { label: "Total Invites", value: invites.length },
             { label: "Total Guests", value: totalExpected },
             { label: "Responded", value: `${totalResponded} / ${invites.length}` },
             { label: "Confirmed", value: `${totalConfirmed} / ${totalExpected}` },
+            { label: "Rejected", value: totalRejected },
+            { label: "Pending", value: totalPending },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-border p-3 md:p-5 text-center">
               <p className="text-2xl md:text-3xl font-playfair text-primary">{card.value}</p>

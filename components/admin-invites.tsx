@@ -576,7 +576,12 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
     if (filters.responded === "attending" && status !== "attending") return false
     if (filters.responded === "partial"   && status !== "partial")   return false
     if (filters.responded === "rejected"  && status !== "rejected")  return false
-    if (filters.responded === "pending"   && status !== "pending")   return false
+    if (filters.responded === "pending") {
+      const hasPendingGuest = i.guests.length > 0
+        ? i.guests.some((g) => g.attending === null)
+        : status === "pending"
+      if (!hasPendingGuest) return false
+    }
     return true
   })
   const hasActiveFilters = filters.name || filters.code || filters.side !== "all" || filters.responded !== "all"

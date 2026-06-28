@@ -1250,7 +1250,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
           <p className="text-xs md:text-sm text-muted-foreground">Pabasara &amp; Lahiru — 31 July 2026</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <AdminStatsModal />
+          <AdminStatsModal invites={invites} />
           <button
             onClick={() => { setShowImportModal(true); setImportFile(null); setImportResult(null); setImportError(null) }}
             className="text-xs md:text-sm px-3 md:px-4 py-2 rounded-lg border border-border text-primary hover:bg-cream transition-smooth whitespace-nowrap flex items-center gap-1.5"

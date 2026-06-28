@@ -46,17 +46,33 @@ export async function GET() {
       return Number(r.confirmed_guests_legacy) > 0 ? "attending" : "rejected"
     }
 
+    const getRejected = (r: (typeof rows)[number]) => {
+      if (Number(r.actual_guest_count) > 0) {
+        return Number(r.actual_guest_count) - Number(r.confirmed_guests_new) - (Number(r.responded_guests) < Number(r.actual_guest_count) ? Number(r.actual_guest_count) - Number(r.responded_guests) : 0)
+      }
+      return getStatus(r) === "rejected" ? Number(r.max_guests) : 0
+    }
+
+    const getPending = (r: (typeof rows)[number]) => {
+      if (Number(r.actual_guest_count) > 0) {
+        return Number(r.actual_guest_count) - Number(r.responded_guests)
+      }
+      return getStatus(r) === "pending" ? Number(r.max_guests) : 0
+    }
+
     const stats = {
       sides: [
         {
           label: "Groom's Side",
-          expected: rows.filter((r) => r.side === "groom").reduce((s, r) => s + getExpected(r), 0),
           confirmed: rows.filter((r) => r.side === "groom").reduce((s, r) => s + getConfirmed(r), 0),
+          rejected: rows.filter((r) => r.side === "groom").reduce((s, r) => s + getRejected(r), 0),
+          pending: rows.filter((r) => r.side === "groom").reduce((s, r) => s + getPending(r), 0),
         },
         {
           label: "Bride's Side",
-          expected: rows.filter((r) => r.side === "bride").reduce((s, r) => s + getExpected(r), 0),
           confirmed: rows.filter((r) => r.side === "bride").reduce((s, r) => s + getConfirmed(r), 0),
+          rejected: rows.filter((r) => r.side === "bride").reduce((s, r) => s + getRejected(r), 0),
+          pending: rows.filter((r) => r.side === "bride").reduce((s, r) => s + getPending(r), 0),
         },
       ],
       responses: [

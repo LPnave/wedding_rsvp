@@ -90,6 +90,9 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
   const [dragItem, setDragItem] = useState<DragItem | null>(null)
   const [dragOverTable, setDragOverTable] = useState<string | null>(null)
   const [extraTables, setExtraTables] = useState<string[]>([])
+  const [seatingSaveStatus, setSeatingSaveStatus] = useState<"idle" | "pending" | "saving" | "saved">("idle")
+  const pendingSeatingChanges = useRef<Map<string, { type: "guest" | "invite"; id: number; table_number: string | null }>>(new Map())
+  const seatingDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Guest management state
   const [expandedInvites, setExpandedInvites] = useState<Set<number>>(new Set())
@@ -100,7 +103,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
 
   // Seating panel state
   const [guestSearch, setGuestSearch] = useState("")
-  const [guestFilter, setGuestFilter] = useState<"all" | "unassigned" | "groom" | "bride">("all")
+  const [guestFilter, setGuestFilter] = useState<"all" | "unassigned" | "assigned" | "confirmed" | "declined" | "groom" | "bride">("all")
   const [selectedGuest, setSelectedGuest] = useState<SeatingCard | null>(null)
 
   const router = useRouter()
@@ -113,6 +116,42 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
 
   useEffect(() => { fetchInvites() }, [])
   useEffect(() => () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current) }, [])
+  useEffect(() => () => { if (seatingDebounceTimer.current) clearTimeout(seatingDebounceTimer.current) }, [])
+
+  const flushSeatingChanges = async () => {
+    const changes = [...pendingSeatingChanges.current.values()]
+    if (changes.length === 0) return
+    pendingSeatingChanges.current.clear()
+    if (seatingDebounceTimer.current) { clearTimeout(seatingDebounceTimer.current); seatingDebounceTimer.current = null }
+    setSeatingSaveStatus("saving")
+    await Promise.all(changes.map((c) =>
+      fetch(c.type === "guest" ? `/api/admin/guests/${c.id}` : `/api/admin/invites/${c.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ table_number: c.table_number }),
+      })
+    ))
+    setSeatingSaveStatus("saved")
+    setTimeout(() => setSeatingSaveStatus("idle"), 2500)
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault()
+        if (pendingSeatingChanges.current.size > 0) flushSeatingChanges()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
+  const queueSeatingChange = (key: string, change: { type: "guest" | "invite"; id: number; table_number: string | null }) => {
+    pendingSeatingChanges.current.set(key, change)
+    setSeatingSaveStatus("pending")
+    if (seatingDebounceTimer.current) clearTimeout(seatingDebounceTimer.current)
+    seatingDebounceTimer.current = setTimeout(flushSeatingChanges, 5 * 60 * 1000)
+  }
 
   // ── Derived attendance status ────────────────────────────────────────────
   const getInviteStatus = (invite: Invite): "pending" | "attending" | "partial" | "rejected" => {
@@ -363,24 +402,16 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
             : i
         )
       )
-      await fetch(`/api/admin/guests/${dragItem.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table_number: targetTable }),
-      })
+      queueSeatingChange(`guest-${dragItem.id}`, { type: "guest", id: dragItem.id, table_number: targetTable })
     } else {
       setInvites((prev) =>
         prev.map((i) => i.id === dragItem.id ? { ...i, table_number: targetTable } : i)
       )
-      await fetch(`/api/admin/invites/${dragItem.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table_number: targetTable }),
-      })
+      queueSeatingChange(`invite-${dragItem.id}`, { type: "invite", id: dragItem.id, table_number: targetTable })
     }
   }
 
-  const handleAssignCard = async (card: SeatingCard, targetTable: string | null) => {
+  const handleAssignCard = (card: SeatingCard, targetTable: string | null) => {
     if (card.kind === "guest") {
       setInvites((prev) =>
         prev.map((i) =>
@@ -389,20 +420,12 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
             : i
         )
       )
-      await fetch(`/api/admin/guests/${card.guestId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table_number: targetTable }),
-      })
+      queueSeatingChange(`guest-${card.guestId}`, { type: "guest", id: card.guestId!, table_number: targetTable })
     } else {
       setInvites((prev) =>
         prev.map((i) => i.id === card.inviteId ? { ...i, table_number: targetTable } : i)
       )
-      await fetch(`/api/admin/invites/${card.inviteId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table_number: targetTable }),
-      })
+      queueSeatingChange(`invite-${card.inviteId}`, { type: "invite", id: card.inviteId, table_number: targetTable })
     }
   }
 
@@ -1326,7 +1349,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
 
           {/* Panel header */}
           <div className="flex flex-wrap items-center justify-between gap-2 px-4 md:px-6 py-4 border-b border-border">
-            <h2 className="font-medium text-primary">Invite Groups</h2>
+            <h2 className="font-medium text-primary">{view === "seating" ? "Seating Plan" : "Invite Groups"}</h2>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex rounded-lg border border-border overflow-hidden">
                 <button
@@ -1429,6 +1452,13 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                       <span className="text-base leading-none font-medium">+</span>
                       Add Table
                     </button>
+                    {seatingSaveStatus !== "idle" && (
+                      <span className={`text-xs transition-smooth ${seatingSaveStatus === "saved" ? "text-green-600" : "text-muted-foreground"}`}>
+                        {seatingSaveStatus === "pending" && "Unsaved changes…"}
+                        {seatingSaveStatus === "saving" && "Saving…"}
+                        {seatingSaveStatus === "saved"  && "✓ Saved"}
+                      </span>
+                    )}
                     {selectedGuest && (
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">
@@ -1610,20 +1640,30 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                       </div>
 
                       {/* Filter tabs */}
-                      <div className="flex border-b border-border bg-cream/50 text-xs shrink-0">
-                        {(["all", "unassigned", "groom", "bride"] as const).map((f) => {
-                          const count = f === "all"
-                            ? seatingCards.length
-                            : f === "unassigned"
-                            ? seatingCards.filter((c) => !c.tableNumber).length
-                            : seatingCards.filter((c) => c.side === f).length
+                      <div className="flex overflow-x-auto border-b border-border bg-cream/50 text-xs shrink-0 scrollbar-none">
+                        {([
+                          { key: "all",       label: "All" },
+                          { key: "unassigned",label: "Unassigned" },
+                          { key: "assigned",  label: "Assigned" },
+                          { key: "confirmed", label: "Confirmed" },
+                          { key: "declined",  label: "Declined" },
+                          { key: "groom",     label: "Groom's" },
+                          { key: "bride",     label: "Bride's" },
+                        ] as const).map(({ key, label }) => {
+                          const count =
+                            key === "all"        ? seatingCards.length
+                            : key === "unassigned" ? seatingCards.filter((c) => !c.tableNumber).length
+                            : key === "assigned"   ? seatingCards.filter((c) => !!c.tableNumber).length
+                            : key === "confirmed"  ? seatingCards.filter((c) => c.kind === "guest" ? c.attending === 1 : c.confirmedGuests > 0).length
+                            : key === "declined"   ? seatingCards.filter((c) => c.kind === "guest" && c.attending === 0).length
+                            : seatingCards.filter((c) => c.side === key).length
                           return (
                             <button
-                              key={f}
-                              onClick={() => setGuestFilter(f)}
-                              className={`flex-1 px-1 py-1.5 transition-smooth ${guestFilter === f ? "bg-white font-medium text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-primary"}`}
+                              key={key}
+                              onClick={() => setGuestFilter(key)}
+                              className={`whitespace-nowrap px-2.5 py-1.5 transition-smooth ${guestFilter === key ? "bg-white font-medium text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-primary"}`}
                             >
-                              {f === "groom" ? "Groom's" : f === "bride" ? "Bride's" : f.charAt(0).toUpperCase() + f.slice(1)}
+                              {label}
                               <span className="ml-0.5 opacity-60">({count})</span>
                             </button>
                           )
@@ -1645,6 +1685,15 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                             const name = card.kind === "guest" ? card.guestName : card.familyName
                             if (q && !name.toLowerCase().includes(q) && !card.familyName.toLowerCase().includes(q)) return false
                             if (guestFilter === "unassigned" && card.tableNumber) return false
+                            if (guestFilter === "assigned"   && !card.tableNumber) return false
+                            if (guestFilter === "confirmed") {
+                              if (card.kind === "guest") { if (card.attending !== 1) return false }
+                              else { if (card.confirmedGuests === 0) return false }
+                            }
+                            if (guestFilter === "declined") {
+                              if (card.kind === "guest") { if (card.attending !== 0) return false }
+                              else return false
+                            }
                             if (guestFilter === "groom" && card.side !== "groom") return false
                             if (guestFilter === "bride" && card.side !== "bride") return false
                             return true

@@ -103,7 +103,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
 
   // Seating panel state
   const [guestSearch, setGuestSearch] = useState("")
-  const [guestFilter, setGuestFilter] = useState<"all" | "unassigned" | "assigned" | "confirmed" | "declined" | "groom" | "bride">("all")
+  const [guestFilter, setGuestFilter] = useState<"all" | "unassigned" | "assigned" | "confirmed" | "pending" | "groom" | "bride">("all")
   const [selectedGuest, setSelectedGuest] = useState<SeatingCard | null>(null)
 
   const router = useRouter()
@@ -1648,7 +1648,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                           { key: "unassigned",label: "Unassigned" },
                           { key: "assigned",  label: "Assigned" },
                           { key: "confirmed", label: "Confirmed" },
-                          { key: "declined",  label: "Declined" },
+                          { key: "pending",   label: "Pending" },
                           { key: "groom",     label: "Groom's" },
                           { key: "bride",     label: "Bride's" },
                         ] as const).map(({ key, label }) => {
@@ -1657,7 +1657,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                             : key === "unassigned" ? seatingCards.filter((c) => !c.tableNumber).length
                             : key === "assigned"   ? seatingCards.filter((c) => !!c.tableNumber).length
                             : key === "confirmed"  ? seatingCards.filter((c) => c.kind === "guest" ? c.attending === 1 : c.confirmedGuests > 0).length
-                            : key === "declined"   ? seatingCards.filter((c) => c.kind === "guest" && c.attending === 0).length
+                            : key === "pending"    ? seatingCards.filter((c) => c.kind === "guest" ? c.attending === null : c.confirmedGuests === 0).length
                             : seatingCards.filter((c) => c.side === key).length
                           return (
                             <button
@@ -1692,9 +1692,9 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                               if (card.kind === "guest") { if (card.attending !== 1) return false }
                               else { if (card.confirmedGuests === 0) return false }
                             }
-                            if (guestFilter === "declined") {
-                              if (card.kind === "guest") { if (card.attending !== 0) return false }
-                              else return false
+                            if (guestFilter === "pending") {
+                              if (card.kind === "guest") { if (card.attending !== null) return false }
+                              else { if (card.confirmedGuests > 0) return false }
                             }
                             if (guestFilter === "groom" && card.side !== "groom") return false
                             if (guestFilter === "bride" && card.side !== "bride") return false

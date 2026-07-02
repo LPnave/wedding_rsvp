@@ -641,18 +641,20 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
 
   const seatingCards: SeatingCard[] = [
     ...invites.flatMap((i) =>
-      i.guests.map((g) => ({
-        kind: "guest" as const,
-        guestId: g.id,
-        inviteId: i.id,
-        guestName: g.name,
-        familyName: i.family_name,
-        attending: g.attending,
-        tableNumber: g.table_number,
-        side: i.side,
-      }))
+      i.guests
+        .filter((g) => g.attending !== 0)
+        .map((g) => ({
+          kind: "guest" as const,
+          guestId: g.id,
+          inviteId: i.id,
+          guestName: g.name,
+          familyName: i.family_name,
+          attending: g.attending,
+          tableNumber: g.table_number,
+          side: i.side,
+        }))
     ),
-    ...invites.filter((i) => i.guests.length === 0).map((i) => ({
+    ...invites.filter((i) => i.guests.length === 0 && getInviteStatus(i) !== "rejected").map((i) => ({
       kind: "invite" as const,
       inviteId: i.id,
       familyName: i.family_name,

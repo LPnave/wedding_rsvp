@@ -1297,24 +1297,36 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
-            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg border border-border shadow-lg z-20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
+            <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-border shadow-lg z-20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
+              <p className="px-4 pt-2.5 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">CSV</p>
               <a
                 href={`/api/rsvp/export?key=${exportSecret}`}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm text-primary hover:bg-cream transition-smooth rounded-t-lg"
+                className="flex items-center gap-2 px-4 py-2 text-sm text-primary hover:bg-cream transition-smooth"
               >
-                <svg className="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
-                </svg>
+                <svg className="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h7.5M8.25 12h7.5M8.25 17.25h4.5M3.75 6A2.25 2.25 0 016 3.75h12A2.25 2.25 0 0120.25 6v12A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18V6z" /></svg>
                 Guest List
               </a>
               <a
                 href={`/api/rsvp/export?key=${exportSecret}&format=tablewise`}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm text-primary hover:bg-cream transition-smooth rounded-b-lg border-t border-border"
+                className="flex items-center gap-2 px-4 py-2 text-sm text-primary hover:bg-cream transition-smooth"
               >
-                <svg className="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h12A2.25 2.25 0 0120.25 6v12A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18V6zM3.75 12h16.5M12 3.75v16.5" />
-                </svg>
+                <svg className="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h12A2.25 2.25 0 0120.25 6v12A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18V6zM3.75 12h16.5M12 3.75v16.5" /></svg>
+                By Table
+              </a>
+              <div className="border-t border-border mt-1" />
+              <p className="px-4 pt-2.5 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Excel (XLSX)</p>
+              <a
+                href={`/api/rsvp/export?key=${exportSecret}&format=xlsx`}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-primary hover:bg-cream transition-smooth"
+              >
+                <svg className="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h7.5M8.25 12h7.5M8.25 17.25h4.5M3.75 6A2.25 2.25 0 016 3.75h12A2.25 2.25 0 0120.25 6v12A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18V6z" /></svg>
+                Guest List
+              </a>
+              <a
+                href={`/api/rsvp/export?key=${exportSecret}&format=tablewise-xlsx`}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-primary hover:bg-cream transition-smooth rounded-b-lg"
+              >
+                <svg className="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h12A2.25 2.25 0 0120.25 6v12A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18V6zM3.75 12h16.5M12 3.75v16.5" /></svg>
                 By Table
               </a>
             </div>

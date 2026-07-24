@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import * as XLSX from "xlsx"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -113,6 +114,72 @@ export async function GET(req: NextRequest) {
         headers: {
           "Content-Type": "text/csv; charset=utf-8",
           "Content-Disposition": `attachment; filename="guests-tablewise-${new Date().toISOString().split("T")[0]}.csv"`,
+        },
+      })
+    }
+
+    // ── XLSX: flat guest list ────────────────────────────────────────────────
+    if (format === "xlsx") {
+      const rows = [
+        ["Name", "Family", "Side", "Invite Code", "Table", "Attending", "Date"],
+        ...guests.map((r) => [r.name, r.family, r.side, r.invite_code, r.table_number ?? "", attLabel(r.attending), dateStr(r.created_at)]),
+        ...legacy.map((r) => [r.name, r.family_name, r.side, r.invite_code ?? "", "", attLabel(r.attending), dateStr(r.created_at)]),
+      ]
+      const ws = XLSX.utils.aoa_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, "Guest List")
+      const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" })
+      return new NextResponse(buf, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="rsvps-${new Date().toISOString().split("T")[0]}.xlsx"`,
+        },
+      })
+    }
+
+    // ── XLSX: table-wise ─────────────────────────────────────────────────────
+    if (format === "tablewise-xlsx") {
+      const sortKey = (t: string | null) => {
+        if (!t) return Number.MAX_SAFE_INTEGER
+        const n = parseInt(t, 10)
+        return isNaN(n) ? Number.MAX_SAFE_INTEGER - 1 : n
+      }
+      const grouped: Record<string, GuestRow[]> = {}
+      for (const g of guests) {
+        const key = g.table_number ?? "__unassigned__"
+        if (!grouped[key]) grouped[key] = []
+        grouped[key].push(g)
+      }
+      const tableKeys = Object.keys(grouped).sort((a, b) =>
+        sortKey(a === "__unassigned__" ? null : a) - sortKey(b === "__unassigned__" ? null : b)
+      )
+
+      const rows: (string | number)[][] = [["Table", "Name", "Family", "Side", "Attending"]]
+      for (const key of tableKeys) {
+        const label = key === "__unassigned__" ? "Unassigned" : `Table ${key}`
+        rows.push([label, "", "", "", ""])
+        for (const g of grouped[key].sort((a, b) => a.name.localeCompare(b.name))) {
+          rows.push(["", g.name, g.family, g.side, attLabel(g.attending)])
+        }
+        rows.push(["", "", "", "", ""])
+      }
+      if (legacy.length > 0) {
+        rows.push(["Walk-ins / Legacy", "", "", "", ""])
+        for (const r of legacy) {
+          rows.push(["", r.name, r.family_name, r.side, attLabel(r.attending)])
+        }
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, "By Table")
+      const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" })
+      return new NextResponse(buf, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="guests-tablewise-${new Date().toISOString().split("T")[0]}.xlsx"`,
         },
       })
     }

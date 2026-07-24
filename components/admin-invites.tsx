@@ -1292,7 +1292,7 @@ export function AdminInvites({ exportSecret }: { exportSecret: string }) {
           </button>
           <div className="relative group">
             <button className="text-xs md:text-sm px-3 md:px-4 py-2 rounded-lg border border-border text-primary hover:bg-cream transition-smooth whitespace-nowrap flex items-center gap-1.5">
-              <span className="hidden sm:inline">Download </span>CSV
+              Export
               <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>

@@ -47,17 +47,6 @@ export function RSVPForm() {
           .input-focus:focus { animation: inputFocus 0.3s ease-out; }
         `}</style>
 
-        <div className="text-center space-y-2 mb-10">
-          <h2 className="font-playfair text-4xl md:text-5xl text-primary">RSVP</h2>
-          <div className="flex items-center justify-center gap-2">
-            <div className="flex-1 max-w-32 h-px bg-accent" />
-            <svg className="w-4 h-4 text-accent animate-float" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 1a9 9 0 100 18 9 9 0 000-18zM9 5h2v2H9V5zm0 4h2v6H9V9z" />
-            </svg>
-            <div className="flex-1 max-w-32 h-px bg-accent" />
-          </div>
-        </div>
-
         <Suspense fallback={<div className="text-center text-muted-foreground text-sm py-8">Loading your invitation...</div>}>
           <RSVPFormInner />
         </Suspense>
@@ -112,6 +101,13 @@ function RSVPFormInner() {
         }
 
         if (data.already_submitted) setSubmitted(true)
+
+        const hasTable = data.table_number || data.guests.some((g) => g.table_number)
+        if (hasTable) {
+          setTimeout(() => {
+            document.getElementById("rsvp-section")?.scrollIntoView({ behavior: "smooth", block: "start" })
+          }, 300)
+        }
       } catch {
         setInviteError("Could not load invite details. You can still RSVP below.")
       } finally {
@@ -187,36 +183,58 @@ function RSVPFormInner() {
     }
   }
 
+  const hasTable = !!(invite?.guests.some((g) => g.table_number) || invite?.table_number)
+
+  const sectionHeading = (
+    <div className="text-center space-y-2 mb-10">
+      <h2 className="font-playfair text-4xl md:text-5xl text-primary">
+        {hasTable ? "Your Table" : "RSVP"}
+      </h2>
+      <div className="flex items-center justify-center gap-2">
+        <div className="flex-1 max-w-32 h-px bg-accent" />
+        <svg className="w-4 h-4 text-accent animate-float" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 1a9 9 0 100 18 9 9 0 000-18zM9 5h2v2H9V5zm0 4h2v6H9V9z" />
+        </svg>
+        <div className="flex-1 max-w-32 h-px bg-accent" />
+      </div>
+    </div>
+  )
+
   if (inviteLoading) {
     return <div className="text-center text-muted-foreground text-sm py-8">Loading your invitation...</div>
   }
 
   if (!inviteCode) {
     return (
-      <div className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-border text-center space-y-4">
-        <svg className="w-12 h-12 text-accent mx-auto" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25H4.5a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5H4.5a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-        </svg>
-        <h3 className="font-playfair text-2xl text-primary">Personal Link Required</h3>
-        <p className="text-primary/70">Please use the original link that was shared by the couple.</p>
-      </div>
+      <>{sectionHeading}
+        <div className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-border text-center space-y-4">
+          <svg className="w-12 h-12 text-accent mx-auto" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25H4.5a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5H4.5a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+          </svg>
+          <h3 className="font-playfair text-2xl text-primary">Personal Link Required</h3>
+          <p className="text-primary/70">Please use the original link that was shared by the couple.</p>
+        </div>
+      </>
     )
   }
 
   if (inviteCode && inviteError) {
     return (
-      <div className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-border text-center space-y-4">
-        <svg className="w-12 h-12 text-amber-400 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-        </svg>
-        <h3 className="font-playfair text-2xl text-primary">Invalid Invite Link</h3>
-        <p className="text-primary/70">{inviteError}</p>
-      </div>
+      <>{sectionHeading}
+        <div className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-border text-center space-y-4">
+          <svg className="w-12 h-12 text-amber-400 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          <h3 className="font-playfair text-2xl text-primary">Invalid Invite Link</h3>
+          <p className="text-primary/70">{inviteError}</p>
+        </div>
+      </>
     )
   }
 
   if (!submitted) {
     return (
+      <>{sectionHeading}
       <form onSubmit={handleSubmit} className="slide-up">
         <div className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-border space-y-6 hover-lift transition-smooth-slow">
           {invite && (
@@ -347,22 +365,35 @@ function RSVPFormInner() {
           </p>
         </div>
       </form>
+      </>
     )
   }
 
   return (
+    <>{sectionHeading}
     <div className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-border text-center space-y-4 success-pulse hover-lift transition-smooth">
-      <svg className="w-16 h-16 text-accent mx-auto" fill="currentColor" viewBox="0 0 20 20">
-        <path
-          fillRule="evenodd"
-          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-          clipRule="evenodd"
-        />
-      </svg>
-      <h3 className="font-playfair text-2xl md:text-3xl text-primary">Thank you for sharing in our joy</h3>
-      <p className="text-primary/70 elegant-text">
-        We have received your RSVP and truly appreciate your response.
-      </p>
+      {invite && invite.guests.some((g) => g.table_number) ? (
+        /* Wedding ring image */
+        <img src="/ring.png" alt="Wedding ring" className="w-16 h-16 mx-auto opacity-80" />
+      ) : (
+        /* Checkmark icon */
+        <svg className="w-16 h-16 text-accent mx-auto" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+        </svg>
+      )}
+
+      {invite && invite.guests.some((g) => g.table_number) ? (
+        <>
+          <h3 className="font-playfair text-2xl md:text-3xl text-primary">We can&apos;t wait to celebrate with you</h3>
+          <p className="text-primary/70 elegant-text">Your table has been reserved.</p>
+          <p className="text-xs text-muted-foreground">Please find your seat using the table number below.</p>
+        </>
+      ) : (
+        <>
+          <h3 className="font-playfair text-2xl md:text-3xl text-primary">Thank you for sharing in our joy</h3>
+          <p className="text-primary/70 elegant-text">We have received your RSVP and truly appreciate your response.</p>
+        </>
+      )}
 
       {invite && invite.guests.length > 0 && invite.guests.some((g) => g.table_number) && (
         <div className="mt-4 pt-4 border-t border-border text-left">
@@ -382,7 +413,6 @@ function RSVPFormInner() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground text-center mt-3">Please show the QR or this invitation at the entrance</p>
         </div>
       )}
 
@@ -394,5 +424,6 @@ function RSVPFormInner() {
         </div>
       )}
     </div>
+    </>
   )
 }

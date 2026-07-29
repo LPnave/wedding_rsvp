@@ -6,6 +6,7 @@ import { CountdownSection } from "@/components/countdown-section"
 import { FooterSection } from "@/components/footer-section"
 import { DecorativeElements } from "@/components/decorative-elements"
 import { BottomNav } from "@/components/bottom-nav"
+import { Suspense } from "react"
 
 export default function Home() {
   return (
@@ -31,7 +32,7 @@ export default function Home() {
       <FooterSection />
 
       {/* Bottom navigation — hidden during hero section */}
-      <BottomNav />
+      <Suspense><BottomNav /></Suspense>
     </main>
   )
 }

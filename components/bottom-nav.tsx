@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { CalendarDays, MapPin, ClipboardCheck, Mail } from "lucide-react"
 
-const SECTIONS = [
+const BASE_SECTIONS = [
   { id: "hero-section",     label: "Invite",  Icon: Mail },
   { id: "ceremony-section", label: "Agenda",  Icon: CalendarDays },
   { id: "venue-section",    label: "Venue",   Icon: MapPin },
@@ -13,6 +14,21 @@ const SECTIONS = [
 export function BottomNav() {
   const [visible, setVisible] = useState(false)
   const [active, setActive] = useState<string | null>(null)
+  const [rsvpLabel, setRsvpLabel] = useState("RSVP")
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const inviteCode = searchParams.get("invite")
+    if (!inviteCode) return
+    fetch(`/api/invite/${encodeURIComponent(inviteCode)}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data) return
+        const hasTable = data.table_number || data.guests?.some((g: { table_number: string | null }) => g.table_number)
+        if (hasTable) setRsvpLabel("Table")
+      })
+      .catch(() => {})
+  }, [searchParams])
 
   useEffect(() => {
     // Hide nav while hero section is visible
@@ -34,7 +50,7 @@ export function BottomNav() {
       },
       { rootMargin: "-20% 0px -20% 0px", threshold: 0 },
     )
-    SECTIONS.forEach(({ id }) => {
+    BASE_SECTIONS.forEach(({ id }) => {
       const el = document.getElementById(id)
       if (el) sectionObserver.observe(el)
     })
@@ -58,7 +74,8 @@ export function BottomNav() {
       {/* Frosted glass bar */}
       <div className="mx-auto max-w-sm mb-4 px-2">
         <div className="flex items-center justify-around bg-white/90 backdrop-blur-md border border-border rounded-2xl shadow-lg px-2 py-2">
-          {SECTIONS.map(({ id, label, Icon }) => {
+          {BASE_SECTIONS.map(({ id, Icon, label: baseLabel }) => {
+            const label = id === "rsvp-section" ? rsvpLabel : baseLabel
             const isActive = active === id
             return (
               <button
